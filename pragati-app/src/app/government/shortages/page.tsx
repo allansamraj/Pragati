@@ -1,56 +1,60 @@
 "use client";
-import React from "react";
-import Link from "next/link";
-import { AlertTriangle, TrendingDown, ArrowRight } from "lucide-react";
+
+import React, { useState } from "react";
+import { AlertTriangle, TrendingDown, Package, Stethoscope, Activity, ArrowRight, ShieldCheck } from "lucide-react";
 
 const SHORTAGES = [
-  { district: "Gadchiroli",  type: "Specialist",  resource: "No Cardiologist", severity: "critical", action: "Assign specialist or enable teleconsultation" },
-  { district: "Nandurbar",   type: "Specialist",  resource: "No Gynaecologist", severity: "critical", action: "Expedite specialist posting" },
-  { district: "Latur",       type: "Medicine",    resource: "Metformin, Insulin out of stock", severity: "critical", action: "Priority supply request" },
-  { district: "Gadchiroli",  type: "Diagnostic",  resource: "No CT Scan available", severity: "high", action: "Review equipment supply" },
-  { district: "Palghar",     type: "Medicine",    resource: "ORS, Amoxicillin limited", severity: "high", action: "Initiate resupply" },
-  { district: "Akola",       type: "Diagnostic",  resource: "X-Ray machine down", severity: "medium", action: "Schedule maintenance" },
-  { district: "Latur",       type: "Doctor",      resource: "General Medicine — 40% vacancy", severity: "medium", action: "Prioritise recruitment" },
+  { id: "sht-01", type: "Specialist Shortage", district: "Nandurbar", facility: "Nandurbar District Civil Hospital", gap: "Cardiology Specialist (0 on-site)", impact: "High Gap", urgency: "Critical", action: "Telemedicine Specialist Assigned" },
+  { id: "sht-02", type: "Diagnostic Shortage", district: "Gadchiroli", facility: "Gadchiroli Sub-District Hospital", gap: "CT Scan Calibration Downtime", impact: "High Gap", urgency: "Critical", action: "Technician Dispatch Scheduled" },
+  { id: "sht-03", type: "Medicine Stockout", district: "Latur", facility: "Latur Rural Hospital Hub", gap: "Metformin 500mg & Insulin (0 units)", impact: "Moderate Gap", urgency: "High", action: "Emergency Supply Requisitioned" },
+  { id: "sht-04", type: "Specialist Shortage", district: "Palghar", facility: "Mokhada PHC", gap: "Pediatrician on Leave", impact: "Moderate Gap", urgency: "Medium", action: "Referrals Routed to Jawhar SDH" },
+  { id: "sht-05", type: "Machine Maintenance", district: "Akola", facility: "Akola District Hospital", gap: "Ultrasound Probe Repair", impact: "Moderate Gap", urgency: "Medium", action: "Vendor Replacement Underway" },
 ];
 
-const S_CFG = {
-  critical: { dot: "bg-critical-500", border: "border-l-critical-500", bg: "bg-critical-50/10", badge: "bg-critical-500 text-white", label: "Critical" },
-  high:     { dot: "bg-limited-500",  border: "border-l-limited-500",  bg: "bg-limited-50/10",  badge: "bg-limited-500 text-white",  label: "High" },
-  medium:   { dot: "bg-ink-tertiary", border: "border-l-white/20",     bg: "bg-white/3",        badge: "bg-white/20 text-white/70",  label: "Medium" },
-};
+export default function GovernmentShortagesPage() {
+  const [filter, setFilter] = useState("all");
 
-export default function ShortagesPage() {
   return (
-    <div className="space-y-5 max-w-[900px]">
+    <div className="space-y-5 max-w-[1100px]">
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-1">Government</p>
-        <h1 className="text-[24px] font-bold text-white" style={{ letterSpacing: "-0.02em" }}>Resource Shortages</h1>
-        <p className="text-[11px] text-white/40 mt-1">DEMO DATA — not actual government data</p>
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-burgundy-700 mb-1">Statewide Resource Triage</p>
+        <h1 className="text-[24px] font-extrabold text-ink-primary tracking-tight">Critical Resource Shortages</h1>
+        <p className="text-[12.5px] text-ink-secondary mt-1">Live alerts for specialist gaps, diagnostic machine downtimes, and medicine stockouts</p>
       </div>
-      <div className="space-y-3">
-        {SHORTAGES.map((s, i) => {
-          const cfg = S_CFG[s.severity as keyof typeof S_CFG];
-          return (
-            <div key={i} className={`border-l-[3px] pl-4 pr-5 py-4 rounded-r-[12px] ${cfg.border} ${cfg.bg} border border-white/8`}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cfg.badge}`}>{cfg.label}</span>
-                    <span className="text-[11px] font-bold text-white/50 uppercase tracking-widest">{s.type}</span>
-                  </div>
-                  <div className="text-[14px] font-bold text-white">{s.district}</div>
-                  <div className="text-[12px] text-white/60 mt-0.5">{s.resource}</div>
-                  <div className="text-[11px] text-white/40 mt-1.5 italic">→ {s.action}</div>
+
+      <div className="bg-white border border-[rgba(124,45,45,0.08)] rounded-[14px] overflow-hidden shadow-2xs">
+        <div className="p-4 border-b border-[rgba(124,45,45,0.06)] bg-bg flex items-center justify-between">
+          <span className="text-[12px] font-bold text-ink-primary">Active Critical Alerts (5 Total)</span>
+          <span className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded">
+            ● 3 Priority Actions Required
+          </span>
+        </div>
+
+        <div className="divide-y divide-[rgba(124,45,45,0.06)]">
+          {SHORTAGES.map((s) => (
+            <div key={s.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-bg/40 transition-colors">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${s.urgency === "Critical" ? "bg-rose-100 text-rose-800 border border-rose-200" : "bg-amber-100 text-amber-800 border border-amber-200"}`}>
+                    {s.urgency}
+                  </span>
+                  <span className="text-[14px] font-bold text-ink-primary">{s.type} — {s.district}</span>
                 </div>
-                <AlertTriangle className={`w-4 h-4 flex-shrink-0 mt-1 ${s.severity === "critical" ? "text-critical-400" : s.severity === "high" ? "text-limited-400" : "text-white/30"}`} aria-hidden />
+                <div className="text-[12.5px] text-ink-secondary">
+                  <strong>Facility:</strong> {s.facility} · <strong>Gap:</strong> <span className="text-rose-700 font-semibold">{s.gap}</span>
+                </div>
+                <div className="text-[11.5px] text-emerald-800 flex items-center gap-1 font-medium pt-0.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Remediation: {s.action}
+                </div>
               </div>
+
+              <button className="px-4 py-2 bg-burgundy-700 hover:bg-burgundy-800 text-white rounded-[8px] text-[12px] font-bold flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer transition-colors flex-shrink-0">
+                Dispatch Action <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             </div>
-          );
-        })}
+          ))}
+        </div>
       </div>
-      <Link href="/government/analytics" className="flex items-center gap-2 text-[12px] font-semibold text-burgundy-400 hover:underline">
-        View full analytics <ArrowRight className="w-3.5 h-3.5" />
-      </Link>
     </div>
   );
 }

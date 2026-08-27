@@ -17,23 +17,28 @@ const MONTHS = ["Sep","Oct","Nov","Dec","Jan","Feb","Mar","Apr","May","Jun","Jul
 export default function AnalyticsPage() {
   const maxBar = Math.max(...BAR_DATA.map(d => d.val));
   const maxT = Math.max(...TREND);
+
   return (
     <div className="space-y-5 max-w-[1100px]">
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-1">Government</p>
-        <h1 className="text-[24px] font-bold text-white" style={{ letterSpacing: "-0.02em" }}>Analytics</h1>
-        <p className="text-[11px] text-white/40 mt-1">DEMO DATA — not actual government statistics</p>
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-burgundy-700 mb-1">Government</p>
+        <h1 className="text-[24px] font-extrabold text-ink-primary tracking-tight">Analytics &amp; Intelligence</h1>
+        <p className="text-[12px] text-ink-secondary mt-1">DEMO DATA — Public health capacity &amp; accessibility metrics</p>
       </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bg-[#242019]/60 border border-white/8 rounded-[14px] p-5">
-          <h2 className="text-[13px] font-bold text-white mb-4">Healthcare Accessibility by District</h2>
+        {/* District Accessibility Bar Chart */}
+        <div className="bg-white border border-[rgba(124,45,45,0.08)] rounded-[14px] p-5 shadow-2xs">
+          <h2 className="text-[14px] font-bold text-ink-primary mb-4">Healthcare Accessibility by District</h2>
           <div className="space-y-2.5">
             {BAR_DATA.map(d => (
               <div key={d.label} className="flex items-center gap-3">
-                <div className="w-20 text-right text-[11px] text-white/60 flex-shrink-0">{d.label}</div>
-                <div className="flex-1 bg-white/8 rounded-full h-5 overflow-hidden">
+                <div className="w-20 text-right text-[12px] font-medium text-ink-secondary flex-shrink-0">{d.label}</div>
+                <div className="flex-1 bg-bg rounded-full h-5 overflow-hidden border border-[rgba(124,45,45,0.06)]">
                   <div
-                    className={`h-full rounded-full flex items-center justify-end pr-2 ${d.val < 50 ? "bg-critical-600" : d.val < 65 ? "bg-limited-500" : "bg-available-500"}`}
+                    className={`h-full rounded-full flex items-center justify-end pr-2 transition-all ${
+                      d.val < 50 ? "bg-rose-500" : d.val < 65 ? "bg-amber-500" : "bg-emerald-500"
+                    }`}
                     style={{ width: `${(d.val / maxBar) * 100}%` }}
                     role="progressbar" aria-valuenow={d.val} aria-valuemin={0} aria-valuemax={100}
                     aria-label={`${d.label}: ${d.val}%`}
@@ -45,56 +50,22 @@ export default function AnalyticsPage() {
             ))}
           </div>
         </div>
-        <div className="bg-[#242019]/60 border border-white/8 rounded-[14px] p-5">
-          <h2 className="text-[13px] font-bold text-white mb-4">State Accessibility Trend (12 months)</h2>
-          <div className="relative h-40">
+
+        {/* 12 Months Trend Chart */}
+        <div className="bg-white border border-[rgba(124,45,45,0.08)] rounded-[14px] p-5 shadow-2xs">
+          <h2 className="text-[14px] font-bold text-ink-primary mb-4">State Accessibility Trend (12 months)</h2>
+          <div className="relative h-40 bg-bg rounded-[8px] p-2 border border-[rgba(124,45,45,0.06)]">
             <svg viewBox="0 0 480 100" className="w-full h-full" preserveAspectRatio="none" aria-label="Trend line chart">
               <polyline
                 points={TREND.map((v, i) => `${i * 40 + 20},${100 - (v / maxT) * 85}`).join(" ")}
-                fill="none" stroke="#7C2D2D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                fill="none" stroke="#7C2D2D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
               />
-              {TREND.map((v, i) => <circle key={i} cx={i * 40 + 20} cy={100 - (v / maxT) * 85} r="3" fill="#7C2D2D" />)}
+              {TREND.map((v, i) => <circle key={i} cx={i * 40 + 20} cy={100 - (v / maxT) * 85} r="3.5" fill="#7C2D2D" />)}
             </svg>
           </div>
-          <div className="flex justify-between mt-2">
-            {MONTHS.map(m => <span key={m} className="text-[9px] text-white/30">{m}</span>)}
+          <div className="flex justify-between mt-2 px-2">
+            {MONTHS.map(m => <span key={m} className="text-[10px] text-ink-tertiary font-semibold">{m}</span>)}
           </div>
-        </div>
-        <div className="bg-[#242019]/60 border border-white/8 rounded-[14px] p-5 lg:col-span-2">
-          <h2 className="text-[13px] font-bold text-white mb-4">Resource Shortages — Priority Districts</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px]" aria-label="Shortages table">
-              <thead>
-                <tr>
-                  <th className="text-left text-white/40 font-semibold pb-2 pr-4">District</th>
-                  {["Doctors","Specialists","ECG","X-Ray","CT Scan","Blood Test","Medicines"].map(h => (
-                    <th key={h} className="text-white/40 font-semibold pb-2 px-2 text-center">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {[
-                  { d: "Nandurbar",   vals: [2,0,2,1,0,2,1] },
-                  { d: "Gadchiroli",  vals: [1,0,1,1,0,1,2] },
-                  { d: "Latur",       vals: [2,1,2,2,1,2,1] },
-                  { d: "Palghar",     vals: [3,2,3,2,1,3,2] },
-                ].map(row => (
-                  <tr key={row.d}>
-                    <td className="text-white/70 font-medium py-2 pr-4">{row.d}</td>
-                    {row.vals.map((v, i) => {
-                      const [bg, label] = v === 0 ? ["bg-critical-600/80 text-white", "None"] : v === 1 ? ["bg-critical-500/40 text-critical-300", "Critical"] : v === 2 ? ["bg-limited-500/40 text-limited-300", "Limited"] : ["bg-available-500/20 text-available-400", "OK"];
-                      return (
-                        <td key={i} className="px-2 py-2 text-center">
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${bg}`}>{label}</span>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-[10px] text-white/20 mt-3">DEMO DATA — Prototype only</p>
         </div>
       </div>
     </div>

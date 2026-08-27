@@ -23,9 +23,9 @@ const DISTRICTS: { name: string; district: string; access: AccessLevel; score: n
 
 const ACCESS_LABEL: Record<AccessLevel, string> = { good: "Good access", moderate: "Moderate gap", gap: "High gap" };
 const ACCESS_STYLE: Record<AccessLevel, string> = {
-  good: "bg-available-50 text-available-600 border-available-100",
-  moderate: "bg-limited-50 text-limited-600 border-limited-100",
-  gap: "bg-critical-50 text-critical-500 border-critical-100",
+  good: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  moderate: "bg-amber-50 text-amber-700 border-amber-200",
+  gap: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
 export default function MapPage() {
@@ -35,18 +35,24 @@ export default function MapPage() {
   return (
     <div className="space-y-5 max-w-[1100px]">
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-1">Government</p>
-        <h1 className="text-[24px] font-bold text-white" style={{ letterSpacing: "-0.02em" }}>
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-burgundy-700 mb-1">Government Surveillance</p>
+        <h1 className="text-[24px] font-extrabold text-ink-primary tracking-tight">
           Healthcare Accessibility — Maharashtra
         </h1>
-        <p className="text-[12px] text-white/40 mt-1">Prototype data only — not actual government statistics</p>
+        <p className="text-[12.5px] text-ink-secondary mt-1">Prototype surveillance data — not actual government statistics</p>
       </div>
 
       {/* Filter */}
       <div className="flex items-center gap-2 flex-wrap">
         {(["all", "good", "moderate", "gap"] as const).map((f) => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`text-[12px] font-medium px-3 py-1.5 rounded-[7px] border transition-colors ${filter === f ? "bg-burgundy-700 text-white border-burgundy-700" : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10"}`}
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`text-[12px] font-bold px-3 py-1.5 rounded-[7px] border transition-colors cursor-pointer ${
+              filter === f
+                ? "bg-burgundy-700 text-white border-burgundy-700 shadow-2xs"
+                : "bg-white border-[rgba(124,45,45,0.12)] text-ink-secondary hover:bg-blush"
+            }`}
           >
             {f === "all" ? "All Districts" : ACCESS_LABEL[f as AccessLevel]}
           </button>
@@ -54,34 +60,29 @@ export default function MapPage() {
       </div>
 
       {/* District list */}
-      <div className="bg-[#242019]/60 border border-white/8 rounded-[14px] overflow-hidden">
-        <div className="divide-y divide-white/5">
+      <div className="bg-white border border-[rgba(124,45,45,0.08)] rounded-[14px] overflow-hidden shadow-2xs">
+        <div className="divide-y divide-[rgba(124,45,45,0.06)]">
           {filtered.map((d) => (
-            <div key={d.name} className="flex items-center gap-4 px-5 py-4">
-              <div className="w-12 text-right">
-                <span className="text-[20px] font-bold font-mono text-white">{d.score}</span>
-                <span className="text-[10px] text-white/40 block">%</span>
-              </div>
+            <div key={d.name} className="flex items-center gap-4 px-5 py-4 hover:bg-bg/50 transition-colors">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="text-[14px] font-bold text-white">{d.name}</div>
-                  <span className={`text-[10px] font-bold border rounded px-1.5 py-0.5 ${ACCESS_STYLE[d.access]}`}>{ACCESS_LABEL[d.access]}</span>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-[14px] font-bold text-ink-primary">{d.name}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-[4px] border ${ACCESS_STYLE[d.access]}`}>
+                    {ACCESS_LABEL[d.access]}
+                  </span>
                 </div>
-                <div className="flex items-center gap-3 text-[11px] text-white/50 flex-wrap">
-                  <span>Specialists: <span className="font-bold">{d.specialists}</span></span>
-                  <span>Diagnostics: <span className="font-bold">{d.diagnostics}</span></span>
-                  <span>Medicines: <span className="font-bold">{d.medicines}</span></span>
-                  {d.tele && <span className="text-available-500 font-bold">Tele ✓</span>}
+                <div className="text-[11.5px] text-ink-secondary">
+                  Specialists: <strong>{d.specialists}</strong> · Diagnostics: <strong>{d.diagnostics}</strong> · Medicines: <strong>{d.medicines}</strong>
                 </div>
               </div>
-              <Link href="/government/dashboard" className="text-[11px] font-semibold text-burgundy-400 hover:underline flex items-center gap-0.5 flex-shrink-0">
-                View <ChevronRight className="w-3 h-3" />
-              </Link>
+
+              <div className="text-right flex items-center gap-3">
+                <div className="text-[22px] font-extrabold font-mono text-ink-primary">{d.score}%</div>
+              </div>
             </div>
           ))}
         </div>
       </div>
-      <p className="text-[11px] text-white/25">DEMO DATA · All data shown is for prototype demonstration only and does not represent actual Maharashtra government healthcare statistics.</p>
     </div>
   );
 }

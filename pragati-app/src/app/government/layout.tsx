@@ -42,18 +42,18 @@ export default function GovernmentLayout({ children }: { children: React.ReactNo
 
   if (!loaded) {
     return (
-      <div className="min-h-screen bg-[#110E0D] flex items-center justify-center">
-        <div className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" aria-label="Loading" />
+      <div className="min-h-screen bg-[#FAF7F5] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-burgundy-700 border-t-transparent rounded-full animate-spin" aria-label="Loading" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#110E0D] text-white flex">
-      {/* Dark sidebar */}
+    <div className="min-h-screen bg-[#FAF7F5] text-ink-primary flex">
+      {/* Sidebar */}
       <aside
         style={{ width: collapsed ? 64 : 240 }}
-        className="fixed top-0 left-0 h-screen bg-[#171311] border-r border-white/10 z-30 flex flex-col transition-all duration-200"
+        className="fixed top-0 left-0 h-screen bg-[#1F1614] border-r border-white/10 z-30 flex flex-col transition-all duration-200"
         aria-label="Government navigation"
       >
         <div className={cn("h-14 border-b border-white/10 flex items-center flex-shrink-0 px-4", collapsed && "justify-center")}>
@@ -123,34 +123,32 @@ export default function GovernmentLayout({ children }: { children: React.ReactNo
       {/* Main Content Area */}
       <div
         style={{ marginLeft: collapsed ? 64 : 240 }}
-        className="flex-1 min-w-0 flex flex-col transition-all duration-200 bg-[#110E0D]"
+        className="flex-1 min-w-0 flex flex-col transition-all duration-200 bg-[#FAF7F5]"
       >
         {/* Top Header */}
-        <header className="h-14 border-b border-white/10 bg-[#171311]/90 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-20">
+        <header className="h-14 border-b border-[rgba(124,45,45,0.08)] bg-white/80 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-20">
           <div className="flex items-center gap-2.5">
-            <span className="text-[13px] font-bold text-white">Department of Public Health &amp; Family Welfare</span>
-            <span className="text-white/30">|</span>
-            <span className="text-[11px] text-slate-300">State Command Center</span>
+            <span className="text-[13px] font-bold text-ink-primary">Department of Public Health &amp; Family Welfare</span>
+            <span className="text-ink-tertiary">|</span>
+            <span className="text-[11px] text-ink-secondary">State Command Center</span>
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-amber-950/80 border border-amber-500/40 text-amber-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-amber-50 border border-amber-200 text-amber-800">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
               Statewide Monitored
             </span>
-            <Link
-              href="/government/shortages"
-              className="p-2 rounded-[8px] hover:bg-white/10 text-slate-300 hover:text-white transition-colors relative"
-              title="Shortages Alert"
+            <button
+              aria-label="Alerts"
+              className="w-8 h-8 rounded-[8px] bg-bg hover:bg-blush border border-[rgba(124,45,45,0.12)] flex items-center justify-center text-ink-secondary transition-colors"
             >
               <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500" />
-            </Link>
+            </button>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-6 max-w-[1360px] w-full text-white">
+        <main className="flex-1 p-6 max-w-[1360px] w-full text-ink-primary">
           {children}
         </main>
       </div>
