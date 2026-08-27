@@ -67,10 +67,11 @@ function FindCareContent() {
   const [searchingFacilities, setSearchingFacilities] = useState(false);
 
   // ── REFRESH FACILITIES WHEN LOCATION, QUERY, OR RADIUS CHANGES ──
-  const executeSearch = useCallback(async () => {
+  const executeSearch = useCallback(async (searchQuery?: string) => {
+    const activeQuery = searchQuery !== undefined ? searchQuery : query;
     setSearchingFacilities(true);
     try {
-      const res = await searchNearby(query, specialtyParam, triageLevel === "emergency");
+      const res = await searchNearby(activeQuery, specialtyParam, triageLevel === "emergency");
       setSearchResult(res);
       if (res.facilities.length > 0) {
         setSelectedFacilityId(res.facilities[0].id);
@@ -137,7 +138,7 @@ function FindCareContent() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    executeSearch();
+    executeSearch(query);
   };
 
   const handleTriageSelect = (level: TriageLevel, sampleQueryKey: string) => {
@@ -382,9 +383,15 @@ function FindCareContent() {
               id="care-search"
               className="w-full bg-bg border border-[rgba(124,45,45,0.12)] rounded-[10px] text-[14px] text-ink-primary placeholder:text-ink-tertiary pl-10 pr-12 py-3 resize-none focus:outline-none focus:border-burgundy-600 focus:ring-1 focus:ring-burgundy-600/20 transition-all"
               rows={2}
-              placeholder="Search by symptom, specialty, or test (e.g. 'I need an ECG', 'Cardiology', 'Child fever')..."
+              placeholder="Search by symptom, specialty, test, or hospital name (e.g. 'JS Global', 'I need an ECG', 'Cardiology', 'Apollo')..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  executeSearch(query);
+                }
+              }}
             />
             <div className="absolute right-3 top-3 flex items-center gap-1.5">
               <button
