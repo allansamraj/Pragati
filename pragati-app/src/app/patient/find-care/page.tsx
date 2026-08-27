@@ -12,6 +12,7 @@ import {
 import { DEMO_FACILITIES, DEMO_SEARCH_CONTEXT } from "@/data/facilities";
 import { StatusBadge } from "@/components/ui";
 import { useLanguage } from "@/lib/i18n";
+import { RealTimeFacilityMap } from "@/components/shared/RealTimeFacilityMap";
 
 type TriageLevel = "routine" | "urgent" | "emergency";
 
@@ -355,37 +356,11 @@ function FindCareContent() {
           </div>
 
           {/* Right: Real-time Resource Map */}
-          <div className="bg-surface border border-[rgba(124,45,45,0.1)] rounded-[14px] p-4 flex flex-col h-[560px] sticky top-6">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-[14px] font-bold text-ink-primary">{t("findCare.resourceMap")}</h3>
-              <span className="text-[10px] text-available-600 bg-available-50 border border-available-100 rounded px-2 py-0.5 font-semibold">
-                {t("findCare.gpsActive")}
-              </span>
-            </div>
-
-            <div className="flex-1 bg-[#1A1210] rounded-[10px] relative overflow-hidden flex flex-col items-center justify-center p-4 text-center border border-white/10">
-              <div className="absolute inset-0 bg-[radial-gradient(#7C2D2D_1px,transparent_1px)] [background-size:16px_16px] opacity-20" />
-
-              <div className="relative z-10 space-y-4">
-                <div className="p-3 bg-white/10 backdrop-blur-md rounded-full w-14 h-14 mx-auto flex items-center justify-center border border-white/20 text-white">
-                  <MapPin className="w-7 h-7 text-rose-400 animate-bounce" />
-                </div>
-                <div>
-                  <div className="text-white font-bold text-[14px]">Nandurbar District Map Hub</div>
-                  <div className="text-white/70 text-[12px] mt-0.5">3 verified public facilities within 25 km</div>
-                </div>
-                <div className="text-[11px] text-emerald-400 bg-emerald-950/80 border border-emerald-500/40 rounded-full px-3 py-1 inline-block">
-                  ● Dhadgaon Hub ⟷ Nandurbar Civil Route Open
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-3 pt-3 border-t border-[rgba(124,45,45,0.08)] flex items-center justify-between text-[11px] text-ink-tertiary">
-              <span>● {t("common.available")} (Civil Hospital)</span>
-              <span>▲ {t("common.limited")} (Dhadgaon)</span>
-              <span>■ {t("common.emergency")} (108 Hub)</span>
-            </div>
-          </div>
+          <RealTimeFacilityMap
+            facilities={DEMO_FACILITIES}
+            selectedFacilityId={selectedFacility}
+            onSelectFacility={setSelectedFacility}
+          />
         </div>
       )}
     </div>
