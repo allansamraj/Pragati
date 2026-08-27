@@ -516,17 +516,17 @@ function handlePatientQuery(
     };
   }
 
-  // ── L. CLEAN CONVERSATIONAL FALLBACK (No generic 5-paragraph capability dumps!) ──
+  // ── L. CLEAN CONVERSATIONAL FALLBACK ──
   return {
     id: msgId,
     sender: "assistant",
     text:
-      "I'm here to assist with your healthcare needs. You can tell me what symptoms you're experiencing, check your active OPD token, view your upcoming appointments, or find nearby healthcare facilities.",
+      "I'm here to help. If you're feeling unwell, please tell me your symptoms and I will help guide you to safe care and nearby public facilities.",
     timestamp,
     role: "patient",
     language,
     suggestedPrompts: [
-      "I got heavy nausea",
+      "I got food poisoning",
       "I got fever",
       "What is my token?",
       "When is my next appointment?",
