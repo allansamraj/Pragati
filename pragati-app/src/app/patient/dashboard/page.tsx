@@ -198,7 +198,7 @@ export default function PatientDashboard() {
               </h2>
             </div>
             <p className="text-[12px] text-ink-secondary mt-0.5">
-              Public hospitals &amp; clinics dynamically sorted by distance from your coordinates
+              Healthcare facilities dynamically matched to your location, care needs and availability.
             </p>
           </div>
           <Link

@@ -1,8 +1,7 @@
 // ─── PRAGATI FACILITY SERVICE ──────────────────────────────────────────────
-// Backend-ready geospatial queries, nearby facility search, radius expansion,
-// and clinical suitability ranking supporting Government & PM-JAY Empaneled Private Hospitals.
+// Unified geospatial discovery engine matching both Government and Private healthcare providers.
 
-import { DEMO_FACILITIES, Facility } from "@/data/facilities";
+import { DEMO_FACILITIES, Facility, FacilityType, OwnershipSector } from "@/data/facilities";
 import { calculateDistance, calculateTravelMinutes } from "./locationService";
 
 export interface NearbySearchParams {
@@ -12,8 +11,9 @@ export interface NearbySearchParams {
   initialRadiusKm?: number;
   needQuery?: string;
   specialty?: string;
+  service?: string;
   isEmergency?: boolean;
-  ownershipFilter?: "all" | "government" | "private_empaneled" | "private" | "trust";
+  facilityType?: "ALL" | "GOVERNMENT" | "PRIVATE";
 }
 
 export interface NearbySearchResult {
@@ -43,8 +43,9 @@ export async function getNearbyFacilities({
   initialRadiusKm = 10,
   needQuery = "",
   specialty = "",
+  service = "",
   isEmergency = false,
-  ownershipFilter = "all",
+  facilityType = "ALL",
 }: NearbySearchParams): Promise<NearbySearchResult> {
   const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
   const lastSyncTime = new Date().toLocaleTimeString("en-IN", {
@@ -58,14 +59,14 @@ export async function getNearbyFacilities({
     const travel = calculateTravelMinutes(dist);
     return {
       ...fac,
-      ownership: fac.ownership || "government",
+      ownershipSector: fac.ownershipSector || (fac.facilityType.startsWith("GOVERNMENT") ? "GOVERNMENT" : "PRIVATE"),
       distanceKm: dist,
       travelMinutes: travel,
     };
   });
 
-  // If user's GPS is in an area with no demo facilities within 25km,
-  // dynamically generate realistic nearby neighborhood facilities (Government & PM-JAY Private)
+  // If user's GPS is in an area with no demo facilities within 25km (e.g. custom location across India),
+  // dynamically generate realistic nearby neighborhood facilities (Government + Private)
   const closestDist = Math.min(...allWithDistance.map((f) => f.distanceKm || 9999));
   if (closestDist > 25) {
     const localGenerated = generateLocalNearbyFacilities(lat, lng, locality).map((f) => {
@@ -79,22 +80,19 @@ export async function getNearbyFacilities({
     allWithDistance = [...localGenerated, ...allWithDistance];
   }
 
-  // Filter by ownership if specified
-  if (ownershipFilter !== "all") {
-    allWithDistance = allWithDistance.filter((f) => {
-      if (ownershipFilter === "government") return f.ownership === "government";
-      if (ownershipFilter === "private_empaneled") return f.ownership === "private_empaneled" || f.isPmJayEmpaneled;
-      if (ownershipFilter === "private") return f.ownership === "private" || f.ownership === "private_empaneled";
-      if (ownershipFilter === "trust") return f.ownership === "trust";
-      return true;
-    });
+  // Filter by sector: ALL | GOVERNMENT | PRIVATE
+  if (facilityType === "GOVERNMENT") {
+    allWithDistance = allWithDistance.filter((f) => f.ownershipSector === "GOVERNMENT");
+  } else if (facilityType === "PRIVATE") {
+    allWithDistance = allWithDistance.filter((f) => f.ownershipSector === "PRIVATE");
   }
 
-  // Determine if we are in "Best Match" (clinical need/specialty filter) or "Nearby" (proximity only)
-  const isBestMatchMode = Boolean(needQuery.trim() || specialty.trim());
+  // Determine if we are in "Best Match" (clinical need/specialty/service filter) or "Nearby" (proximity only)
+  const combinedNeed = (needQuery + " " + specialty + " " + service).trim();
+  const isBestMatchMode = Boolean(combinedNeed);
 
   // Analyze clinical query if present
-  const queryLower = needQuery.toLowerCase() + " " + specialty.toLowerCase();
+  const queryLower = combinedNeed.toLowerCase();
   const needsECG = queryLower.includes("ecg") || queryLower.includes("chest") || queryLower.includes("heart") || queryLower.includes("angina");
   const needsCardiology = queryLower.includes("cardio") || queryLower.includes("heart") || queryLower.includes("chest") || specialty.toLowerCase().includes("cardiology");
   const needsXray = queryLower.includes("xray") || queryLower.includes("x-ray") || queryLower.includes("fracture") || queryLower.includes("bone");
@@ -117,7 +115,7 @@ export async function getNearbyFacilities({
     isExpandedRadius = true;
   }
   if (inRadius.length === 0) {
-    inRadius = [...allWithDistance].sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0)).slice(0, 5);
+    inRadius = [...allWithDistance].sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0)).slice(0, 6);
     activeRadius = Math.ceil(inRadius[inRadius.length - 1]?.distanceKm || 50);
   }
 
@@ -128,7 +126,7 @@ export async function getNearbyFacilities({
     const warnings: string[] = [];
     const fails: string[] = [];
 
-    // Operating hours
+    // 1. Operating hours & status
     if (fac.isOpen) {
       score += 10;
       reasons.push("Open now");
@@ -137,7 +135,7 @@ export async function getNearbyFacilities({
       fails.push("Facility currently closed");
     }
 
-    // Emergency capability
+    // 2. Emergency capability
     if (isEmergency || needsECG) {
       if (fac.emergencyCapability) {
         score += 15;
@@ -148,18 +146,18 @@ export async function getNearbyFacilities({
       }
     }
 
-    // PM-JAY Empanelment
+    // 3. PM-JAY Empanelment
     if (fac.isPmJayEmpaneled) {
       reasons.push("PM-JAY Cashless Eligible");
     }
 
-    // Specialist match
+    // 4. Specialist match
     if (needsCardiology) {
       const hasCardio = fac.specialists.some((s) => s.toLowerCase().includes("cardio"));
       const docCardio = fac.doctors.find((d) => d.specialty.toLowerCase().includes("cardio") && d.status === "available");
       if (docCardio) {
         score += 25;
-        reasons.push(`Cardiologist available (${docCardio.name})`);
+        reasons.push(`Cardiologist on duty (${docCardio.name})`);
       } else if (hasCardio) {
         score += 10;
         warnings.push("Cardiology department available, doctor on call");
@@ -177,14 +175,14 @@ export async function getNearbyFacilities({
       }
     }
 
-    // Diagnostic match (ECG, X-Ray)
+    // 5. Diagnostic match (ECG, X-Ray)
     if (needsECG) {
       const ecg = fac.diagnostics.find((d) => d.name.toLowerCase().includes("ecg"));
       if (ecg && ecg.status === "available") {
-        score += 20;
+        score += 25;
         reasons.push(`12-Lead ECG operational (~${ecg.waitTime || 10}m wait)`);
       } else {
-        score -= 20;
+        score -= 25;
         fails.push("12-Lead ECG unavailable");
       }
     }
@@ -197,11 +195,11 @@ export async function getNearbyFacilities({
       }
     }
 
-    // Distance factor (closer is better: -1 point per 2 km)
+    // 6. Distance factor (closer is better: -1 point per 2 km)
     const dist = fac.distanceKm ?? 10;
     score = Math.max(10, Math.min(99, score - Math.floor(dist / 2)));
 
-    // Low queue bonus
+    // 7. Low queue bonus
     if (fac.queue && fac.queue.estimatedWait < 15) {
       reasons.push(`Low Queue (${fac.queue.estimatedWait} min wait)`);
     }
@@ -261,8 +259,13 @@ export async function getFacilityDetails(id: string, userLat?: number, userLng?:
 /**
  * Searches facilities specifically providing a given clinical service.
  */
-export async function getFacilitiesByService(service: string, lat: number, lng: number): Promise<Facility[]> {
-  const res = await getNearbyFacilities({ lat, lng, needQuery: service });
+export async function getFacilitiesByService(
+  service: string,
+  lat: number,
+  lng: number,
+  facilityType: "ALL" | "GOVERNMENT" | "PRIVATE" = "ALL"
+): Promise<Facility[]> {
+  const res = await getNearbyFacilities({ lat, lng, service, needQuery: service, facilityType });
   return res.facilities.filter((f) =>
     f.services.some((s) => s.toLowerCase().includes(service.toLowerCase())) ||
     f.diagnostics.some((d) => d.name.toLowerCase().includes(service.toLowerCase()))
@@ -272,22 +275,31 @@ export async function getFacilitiesByService(service: string, lat: number, lng: 
 /**
  * Searches facilities specifically with a given specialist on duty.
  */
-export async function getFacilitiesBySpecialist(specialist: string, lat: number, lng: number): Promise<Facility[]> {
-  const res = await getNearbyFacilities({ lat, lng, specialty: specialist });
+export async function getFacilitiesBySpecialist(
+  specialist: string,
+  lat: number,
+  lng: number,
+  facilityType: "ALL" | "GOVERNMENT" | "PRIVATE" = "ALL"
+): Promise<Facility[]> {
+  const res = await getNearbyFacilities({ lat, lng, specialty: specialist, facilityType });
   return res.facilities;
 }
 
 /**
  * Returns emergency trauma capable facilities sorted by proximity.
  */
-export async function getEmergencyFacilities(lat: number, lng: number): Promise<Facility[]> {
-  const res = await getNearbyFacilities({ lat, lng, isEmergency: true });
+export async function getEmergencyFacilities(
+  lat: number,
+  lng: number,
+  facilityType: "ALL" | "GOVERNMENT" | "PRIVATE" = "ALL"
+): Promise<Facility[]> {
+  const res = await getNearbyFacilities({ lat, lng, isEmergency: true, facilityType });
   return res.facilities.filter((f) => f.emergencyCapability);
 }
 
 /**
  * Generates high-fidelity localized nearby facilities around any custom GPS coordinates
- * spanning both Government, PM-JAY Empaneled Private, Trust, and Super-Specialty facilities.
+ * spanning both Government, Private Hospitals, Private Clinics, Diagnostics, and Pharmacies.
  */
 function generateLocalNearbyFacilities(lat: number, lng: number, locality: string): Facility[] {
   const baseLoc = locality.split(",")[0] || "Local";
@@ -297,9 +309,11 @@ function generateLocalNearbyFacilities(lat: number, lng: number, locality: strin
     {
       id: `fac-local-001`,
       name: `Government Primary Health Centre (UPHC), ${baseLoc}`,
+      facilityType: "GOVERNMENT_PHC",
+      ownershipSector: "GOVERNMENT",
       type: "Urban Primary Health Centre",
       ownership: "government",
-      accreditation: "Government Public Health · 100% Free Care",
+      accreditation: "State Public Health · 100% Free Care",
       address: `Main Clinic Road, ${locality}`,
       district: locality.split(",")[1]?.trim() || "District Hub",
       state: "Public Health Dept",
@@ -313,7 +327,7 @@ function generateLocalNearbyFacilities(lat: number, lng: number, locality: strin
       services: ["Primary Outpatient OPD", "12-Lead ECG", "Free Generic Medicines", "Immunization", "Maternal Health"],
       specialists: ["General Medicine"],
       hasTelemedicine: true,
-      lastUpdated: "Just now",
+      lastUpdated: "Updated 5 min ago",
       doctors: [
         { id: "doc-loc-01", name: "Dr. S. Priya", specialty: "General Medicine", status: "available", nextSlot: "10:15 AM" },
       ],
@@ -329,11 +343,13 @@ function generateLocalNearbyFacilities(lat: number, lng: number, locality: strin
       queue: { nowServing: 9, totalAhead: 2, estimatedWait: 6, lastUpdated: "Just now" },
     },
 
-    // 2. Ayushman Bharat PM-JAY Empaneled Private Multi-Specialty Hospital
+    // 2. Private PM-JAY Empaneled Multi-Specialty Hospital
     {
       id: `fac-local-002`,
       name: `Care & Cure Multi-Specialty Hospital (PM-JAY Empaneled)`,
-      type: "Private Multi-Specialty Hospital",
+      facilityType: "PRIVATE_HOSPITAL",
+      ownershipSector: "PRIVATE",
+      type: "Private Multispeciality Hospital",
       ownership: "private_empaneled",
       isPmJayEmpaneled: true,
       accreditation: "NABH Accredited · Ayushman Bharat PM-JAY Empaneled (Cashless)",
@@ -350,7 +366,7 @@ function generateLocalNearbyFacilities(lat: number, lng: number, locality: strin
       services: ["24/7 Emergency Trauma", "Cardiology OPD & Cath Lab", "12-Lead ECG", "Digital X-Ray", "CT Scan (32-Slice)", "ICU & CCU", "Cashless PM-JAY Desk"],
       specialists: ["Cardiology", "General Medicine", "Orthopaedics", "Paediatrics", "General Surgery"],
       hasTelemedicine: true,
-      lastUpdated: "Just now",
+      lastUpdated: "Updated 8 min ago",
       doctors: [
         { id: "doc-loc-02", name: "Dr. K. Ravichandran, MD, DM", specialty: "Cardiology", status: "available", nextSlot: "10:30 AM" },
         { id: "doc-loc-03", name: "Dr. Deepa Sundaram", specialty: "General Medicine", status: "available", nextSlot: "10:45 AM" },
@@ -374,6 +390,8 @@ function generateLocalNearbyFacilities(lat: number, lng: number, locality: strin
     {
       id: `fac-local-003`,
       name: `Government Peripheral Hospital & Community Health Centre, ${baseLoc}`,
+      facilityType: "GOVERNMENT_CHC",
+      ownershipSector: "GOVERNMENT",
       type: "Community Health Centre",
       ownership: "government",
       accreditation: "Government Public Health · 100% Free Care",
@@ -390,7 +408,7 @@ function generateLocalNearbyFacilities(lat: number, lng: number, locality: strin
       services: ["Emergency First Aid", "12-Lead ECG", "General Medicine OPD", "Digital X-Ray", "Maternity Wing", "Free Pharmacy"],
       specialists: ["General Medicine", "Paediatrics", "Obstetrics & Gynaecology"],
       hasTelemedicine: true,
-      lastUpdated: "Just now",
+      lastUpdated: "Updated 12 min ago",
       doctors: [
         { id: "doc-loc-05", name: "Dr. V. Murugan", specialty: "General Medicine", status: "available", nextSlot: "11:00 AM" },
       ],
@@ -409,6 +427,8 @@ function generateLocalNearbyFacilities(lat: number, lng: number, locality: strin
     {
       id: `fac-local-004`,
       name: `Apollo Reach Super-Specialty Hospital & Trauma Centre`,
+      facilityType: "PRIVATE_HOSPITAL",
+      ownershipSector: "PRIVATE",
       type: "Super-Specialty Hospital",
       ownership: "private",
       isPmJayEmpaneled: true,
@@ -426,7 +446,7 @@ function generateLocalNearbyFacilities(lat: number, lng: number, locality: strin
       services: ["24/7 Level-1 Trauma", "Interventional Cardiology", "Neurology & Stroke Unit", "MRI (1.5T)", "CT Scan", "Cath Lab", "Dialysis Unit"],
       specialists: ["Cardiology", "Neurology", "Orthopaedics", "Emergency Medicine", "General Surgery"],
       hasTelemedicine: true,
-      lastUpdated: "Just now",
+      lastUpdated: "Updated 4 min ago",
       doctors: [
         { id: "doc-loc-06", name: "Dr. Rajeshwar Rao, MCh", specialty: "Cardiology", status: "available", nextSlot: "11:30 AM" },
         { id: "doc-loc-07", name: "Dr. Meenakshi S.", specialty: "Neurology", status: "available", nextSlot: "12:00 PM" },
@@ -444,40 +464,74 @@ function generateLocalNearbyFacilities(lat: number, lng: number, locality: strin
       queue: { nowServing: 11, totalAhead: 1, estimatedWait: 6, lastUpdated: "Just now" },
     },
 
-    // 5. Charitable / Mission Trust Hospital
+    // 5. Private Specialty Clinic (Cardiology & General)
     {
       id: `fac-local-005`,
-      name: `Seva Trust Charitable Multi-Specialty Hospital`,
-      type: "Trust Hospital",
-      ownership: "trust",
-      isPmJayEmpaneled: true,
-      accreditation: "Non-Profit Trust · Subsidized Care & PM-JAY Cashless",
-      address: `Gandhi Road, ${locality}`,
+      name: `City Heart & Diagnostic Clinic, ${baseLoc}`,
+      facilityType: "PRIVATE_CLINIC",
+      ownershipSector: "PRIVATE",
+      type: "Private Cardiology Clinic",
+      ownership: "private",
+      accreditation: "Private Specialty Clinic",
+      address: `Opposite Bus Stand, ${locality}`,
       district: locality.split(",")[1]?.trim() || "District Hub",
-      state: "Charitable Trust Network",
+      state: "Private Health Network",
       pincode: "Verified",
-      lat: lat - 0.038,
-      lng: lng - 0.019,
-      phone: "044-245444",
-      hours: "Open 24/7 (Emergency & Dialysis)",
+      lat: lat - 0.015,
+      lng: lng - 0.012,
+      phone: "044-245333",
+      hours: "Mon–Sat: 9:00 AM – 8:00 PM",
       isOpen: true,
-      emergencyCapability: true,
-      services: ["Subsidized Dialysis", "12-Lead ECG", "Digital X-Ray", "General OPD", "Ophthalmology / Eye Care", "PM-JAY Desk"],
-      specialists: ["General Medicine", "Ophthalmology", "Nephrology"],
+      emergencyCapability: false,
+      services: ["Cardiology Consultation", "12-Lead ECG", "2D Echo", "Lipid Profile"],
+      specialists: ["Cardiology", "General Medicine"],
       hasTelemedicine: true,
-      lastUpdated: "Just now",
+      lastUpdated: "Updated 10 min ago",
       doctors: [
-        { id: "doc-loc-08", name: "Dr. K. Swaminathan", specialty: "General Medicine", status: "available", nextSlot: "10:30 AM" },
+        { id: "doc-loc-08", name: "Dr. S. Sundararajan, MD", specialty: "Cardiology", status: "available", nextSlot: "10:45 AM" },
       ],
       diagnostics: [
         { id: "diag-loc-11", name: "12-Lead ECG", status: "available", waitTime: 5 },
-        { id: "diag-loc-12", name: "Digital X-Ray", status: "available", waitTime: 10 },
+        { id: "diag-loc-12", name: "2D Echo", status: "available", waitTime: 15 },
       ],
       medicines: [
-        { name: "Paracetamol 500mg", status: "available" },
-        { name: "Metformin 500mg", status: "available" },
+        { name: "Metoprolol 50mg", status: "available" },
+        { name: "Atorvastatin 20mg", status: "available" },
       ],
-      queue: { nowServing: 18, totalAhead: 2, estimatedWait: 8, lastUpdated: "Just now" },
+      queue: { nowServing: 7, totalAhead: 1, estimatedWait: 5, lastUpdated: "Just now" },
+    },
+
+    // 6. Registered Diagnostic Centre & Pathology Lab
+    {
+      id: `fac-local-006`,
+      name: `Dr. Lal PathLabs & Diagnostics, ${baseLoc}`,
+      facilityType: "DIAGNOSTIC_CENTER",
+      ownershipSector: "PRIVATE",
+      type: "Diagnostic Centre & Pathology",
+      ownership: "private",
+      accreditation: "NABL Accredited Diagnostic Centre",
+      address: `Commercial Complex, ${locality}`,
+      district: locality.split(",")[1]?.trim() || "District Hub",
+      state: "Private Diagnostics",
+      pincode: "Verified",
+      lat: lat + 0.022,
+      lng: lng - 0.015,
+      phone: "044-245777",
+      hours: "Mon–Sun: 7:00 AM – 9:00 PM",
+      isOpen: true,
+      emergencyCapability: false,
+      services: ["12-Lead ECG", "Digital X-Ray", "Pathology", "Blood Chemistry", "Ultrasound"],
+      specialists: ["General Medicine"],
+      hasTelemedicine: false,
+      lastUpdated: "Updated 6 min ago",
+      doctors: [],
+      diagnostics: [
+        { id: "diag-loc-13", name: "12-Lead ECG", status: "available", waitTime: 5 },
+        { id: "diag-loc-14", name: "Digital X-Ray", status: "available", waitTime: 10 },
+        { id: "diag-loc-15", name: "CBC & Lipid Profile", status: "available", waitTime: 15 },
+      ],
+      medicines: [],
+      queue: { nowServing: 5, totalAhead: 1, estimatedWait: 4, lastUpdated: "Just now" },
     },
   ];
 }

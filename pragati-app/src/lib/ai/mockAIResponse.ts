@@ -447,7 +447,7 @@ function handlePatientQuery(
     };
   }
 
-  // ── K. NEARBY / BEST MATCH FACILITY & SERVICE DISCOVERY (ECG, Cardiology, Hospital near me) ──
+  // ── K. NEARBY / BEST MATCH FACILITY & SERVICE DISCOVERY (Government + Private) ──
   if (
     q.includes("near me") ||
     q.includes("nearby") ||
@@ -460,31 +460,66 @@ function handlePatientQuery(
     q.includes("find care") ||
     q.includes("clinic") ||
     q.includes("phc") ||
-    q.includes("pharmacy")
+    q.includes("chc") ||
+    q.includes("pharmacy") ||
+    q.includes("private") ||
+    q.includes("government") ||
+    q.includes("govt")
   ) {
+    const isPrivateOnly = (q.includes("private") || q.includes("pvt")) && !q.includes("government") && !q.includes("govt");
+    const isGovtOnly = (q.includes("government") || q.includes("govt") || q.includes("public")) && !q.includes("private");
     const isEcg = q.includes("ecg");
     const isCardio = q.includes("cardio") || q.includes("heart");
 
-    const facilities = DEMO_FACILITIES.slice(0, 2).map((f, idx) => ({
+    let filtered = DEMO_FACILITIES;
+    if (isPrivateOnly) {
+      filtered = DEMO_FACILITIES.filter((f) => f.ownershipSector === "PRIVATE" || f.ownership === "private" || f.ownership === "private_empaneled");
+    } else if (isGovtOnly) {
+      filtered = DEMO_FACILITIES.filter((f) => f.ownershipSector === "GOVERNMENT" || f.ownership === "government");
+    }
+
+    if (isCardio) {
+      filtered = filtered.filter((f) => f.specialists.some((s) => s.toLowerCase().includes("cardio")));
+    }
+    if (isEcg) {
+      filtered = filtered.filter((f) => f.diagnostics.some((d) => d.name.toLowerCase().includes("ecg")));
+    }
+
+    if (filtered.length === 0) {
+      filtered = DEMO_FACILITIES.slice(0, 2);
+    }
+
+    const facilities = filtered.slice(0, 2).map((f, idx) => ({
       id: f.id,
       name: f.name,
       type: f.type,
-      distanceKm: f.distanceKm || (idx === 0 ? 2.4 : 5.8),
-      travelMinutes: f.travelMinutes || (idx === 0 ? 10 : 22),
-      matchScore: idx === 0 ? 96 : 84,
+      distanceKm: f.distanceKm || (idx === 0 ? 2.4 : 3.8),
+      travelMinutes: f.travelMinutes || (idx === 0 ? 10 : 18),
+      matchScore: idx === 0 ? 96 : 88,
       specialistAvailable: true,
-      specialistName: isCardio ? "Dr. Ananya Rao (Cardiology)" : f.doctors[0]?.name || "General Medicine",
+      specialistName: isCardio ? (f.doctors.find((d) => d.specialty.includes("Cardio"))?.name || "Cardiologist on Duty") : (f.doctors[0]?.name || "Doctor on Duty"),
       diagnosticAvailable: true,
-      diagnosticWaitMinutes: isEcg ? 10 : 15,
-      queueWaitMinutes: f.queue?.estimatedWait || 15,
+      diagnosticWaitMinutes: isEcg ? 5 : 15,
+      queueWaitMinutes: f.queue?.estimatedWait || 12,
       isBestMatch: idx === 0,
     }));
 
-    const intro = isEcg
-      ? "Based on your current location and diagnostic requirement for an ECG, here are verified nearby public healthcare facilities with active 12-lead ECG machines:"
-      : isCardio
-      ? "Here are the nearest verified facilities with active Cardiology specialist OPD consultations:"
-      : "Based on your current location, here are the nearest verified public healthcare facilities:";
+    let intro = "Based on your current location, here are verified healthcare facilities (Government & Private):";
+    if (isPrivateOnly && isCardio) {
+      intro = "Here are verified private cardiology clinics and multi-specialty hospitals near your current location:";
+    } else if (isPrivateOnly && isEcg) {
+      intro = "Here are verified private hospitals and diagnostic centers with active 12-lead ECG near you:";
+    } else if (isPrivateOnly) {
+      intro = "Here are verified private healthcare facilities and clinics near your current location:";
+    } else if (isGovtOnly && isEcg) {
+      intro = "Here are verified government public hospitals with active 12-lead ECG machines (100% free):";
+    } else if (isGovtOnly) {
+      intro = "Here are verified government public healthcare facilities near your current location (Free Care):";
+    } else if (isEcg) {
+      intro = "Here are verified healthcare facilities (Government & Private) with active 12-lead ECG machines near your current location:";
+    } else if (isCardio) {
+      intro = "Here are verified healthcare facilities with active Cardiology specialist consultations near you:";
+    }
 
     return {
       id: msgId,
@@ -492,11 +527,13 @@ function handlePatientQuery(
       text:
         `${intro}\n\n` +
         `1. ${facilities[0].name} — ${facilities[0].distanceKm} km away\n` +
-        `   • Status: Open Now (Queue: ~${facilities[0].queueWaitMinutes} min)\n` +
-        `   • Diagnostics: 12-Lead ECG Operational (~10 min wait)\n` +
-        `   • Specialist: ${facilities[0].specialistName}\n\n` +
-        `2. ${facilities[1].name} — ${facilities[1].distanceKm} km away (~${facilities[1].travelMinutes} min travel)\n\n` +
-        `Would you like to book an OPD token or get turn-by-turn driving directions?`,
+        `   • Type: ${facilities[0].type}\n` +
+        `   • Status: Open Now (Queue: ~${facilities[0].queueWaitMinutes} min wait)\n` +
+        `   • Diagnostics: 12-Lead ECG Operational\n` +
+        `   • Doctor: ${facilities[0].specialistName}\n\n` +
+        `2. ${facilities[1].name} — ${facilities[1].distanceKm} km away (~${facilities[1].travelMinutes} min travel)\n` +
+        `   • Type: ${facilities[1].type}\n\n` +
+        `Would you like to book an OPD token, start a teleconsultation, or get driving directions?`,
       timestamp,
       role: "patient",
       language,
@@ -509,9 +546,9 @@ function handlePatientQuery(
         href: "/patient/find-care",
       },
       suggestedPrompts: [
-        "Book a token at District Hospital",
-        "When is my next appointment?",
-        "Check my active token",
+        "Book a token",
+        "Find private hospitals near me",
+        "Find government hospitals near me",
       ],
     };
   }
