@@ -431,10 +431,10 @@ function handlePatientQuery(
       sender: "assistant",
       text:
         language === "mr"
-          ? "तुमच्या गरजेनुसार नंदुरबारमधील उपलब्ध शासकीय आरोग्य सेवा सापडल्या आहेत."
+          ? "तुमच्या सध्याच्या स्थानानुसार आणि गरजेनुसार जवळची शासकीय रुग्णालये सापडली आहेत."
           : language === "ta"
-          ? "உங்கள் தேவைக்கேற்ப நந்தூர்பாரில் கிடைக்கும் பொது மருத்துவமனைகள் கண்டறியப்பட்டன."
-          : "Based on your clinical need, PRAGATI matched these verified public healthcare facilities near Nandurbar:",
+          ? "உங்கள் தற்போதைய இருப்பிடம் மற்றும் தேவைக்கேற்ப அருகிலுள்ள பொது மருத்துவமனைகள் கண்டறியப்பட்டன."
+          : "Based on your current location and healthcare needs, PRAGATI matched these nearby verified public healthcare facilities:",
       timestamp,
       role: "patient",
       language,
@@ -443,8 +443,8 @@ function handlePatientQuery(
         data: facilities,
       },
       actionLink: {
-        label: "Open Facility Triage",
-        href: "/patient/find-care?specialty=cardiology",
+        label: "Open Nearby Facility Finder",
+        href: "/patient/find-care",
       },
     };
   }
