@@ -1,6 +1,6 @@
-// ─── PRAGATI ASSIST — DATA-GROUNDED & SYMPTOM-AWARE GUIDED ENGINE ───────────
-// Architecture: User Query -> Symptom Triage Check -> Intent Classification -> Tool Selection -> Fetch Verified Application Data -> Structured Response.
-// Grounded strictly in real application database / services. NEVER hallucinating.
+// ─── PRAGATI ASSIST — CRITICAL INTENT ROUTER & DATA-GROUNDED ENGINE ─────────
+// Rule: NEVER respond with a generic introduction when the patient has asked a meaningful question.
+// Multi-step conversational triage engine with safety, memory, and zero hallucination.
 
 import { ChatMessage, UserRole, AssistantLanguage } from "./types";
 import { patientTools, doctorTools, providerTools, governmentTools } from "./assistantTools";
@@ -33,7 +33,7 @@ export function generateAssistantResponse(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. PATIENT ASSISTANT ENGINE (DATA-GROUNDED + SYMPTOM-AWARE)
+// 1. PATIENT INTENT ROUTER & ENGINE
 // ─────────────────────────────────────────────────────────────────────────────
 
 function handlePatientQuery(
@@ -44,26 +44,60 @@ function handlePatientQuery(
 ): ChatMessage {
   const q = rawQuery.trim().toLowerCase();
 
-  // ── 0. FIRST: EVALUATE SYMPTOM TRIAGE LIFECYCLE (Conversational Stepwise Assessment) ──
+  // ── A. SIMPLE GREETINGS ONLY ("hi", "hello", "hey", "namaste", "vanakkam") ──
+  const isSimpleGreeting =
+    q === "hi" ||
+    q === "hello" ||
+    q === "hey" ||
+    q === "hi pragati" ||
+    q === "hello pragati" ||
+    q === "namaste" ||
+    q === "namaskar" ||
+    q === "vanakkam";
+
+  if (isSimpleGreeting) {
+    return {
+      id: msgId,
+      sender: "assistant",
+      text:
+        language === "mr"
+          ? "नमस्कार! आज मी तुम्हाला आरोग्य, लक्षणे, तपासणी किंवा डॉक्टरांच्या भेटीबद्दल कशी मदत करू शकेन?"
+          : language === "ta"
+          ? "வணக்கம்! இன்று உங்கள் உடல்நலம், அறிகுறிகள், சந்திப்புகள் அல்லது மருத்துவமனை சேவைகளில் நான் எவ்வாறு உதவ முடியும்?"
+          : "Hi! How can I help you today?",
+      timestamp,
+      role: "patient",
+      language,
+      suggestedPrompts: [
+        "I have fever",
+        "What is my token?",
+        "When is my next appointment?",
+        "Find Care near me",
+      ],
+    };
+  }
+
+  // ── B. SYMPTOM CONVERSATION ENGINE (Nausea, Fever, Headache, Migraine, Cough, etc.) ──
   const triageResponse = symptomTriageEngine.processSymptomQuery(rawQuery, timestamp, msgId, language);
   if (triageResponse) {
     return triageResponse;
   }
 
-  // ── A. "WHAT SHOULD I DO?" / "WHAT MEDICINE SHOULD I TAKE FOR FEVER?" ──
+  // ── C. "WHAT SHOULD I DO?" / "WHAT MEDICINE CAN I TAKE?" ──
   if (
     q.includes("what should i do") ||
     q.includes("how to get rid") ||
     q.includes("how to cure") ||
     q.includes("what medicine should i take") ||
     q.includes("medicine for fever") ||
-    q.includes("tablet for headache")
+    q.includes("tablet for headache") ||
+    q.includes("medicine for nausea")
   ) {
     return {
       id: msgId,
       sender: "assistant",
       text:
-        "Fever or pain is usually a sign that your body's immune system is responding to an underlying cause. The safest approach is to monitor symptoms carefully and seek professional advice.\n\n" +
+        "Fever, nausea, or discomfort is usually a sign that your body is responding to an underlying cause. The safest approach is to monitor symptoms carefully and seek professional advice.\n\n" +
         "Safe General Guidance:\n" +
         "• Rest adequately and drink plenty of fluids (water, ORS, warm broths) to avoid dehydration.\n" +
         "• For over-the-counter fever reducers such as Paracetamol, always check package labeling or consult a healthcare professional/pharmacist for appropriate dosage based on your age and health history.\n" +
@@ -85,7 +119,7 @@ function handlePatientQuery(
     };
   }
 
-  // ── B. EMERGENCY INTENT (Acute symptoms, 108, heart attack, emergency) ──
+  // ── D. EMERGENCY INTENT (Acute chest pain, 108, heart attack, emergency) ──
   if (
     q.includes("emergency") ||
     q.includes("108") ||
@@ -138,7 +172,7 @@ function handlePatientQuery(
     };
   }
 
-  // ── C. TOKEN & QUEUE INTENT ──
+  // ── E. TOKEN & QUEUE INTENT ──
   if (
     q.includes("token") ||
     q.includes("queue") ||
@@ -155,7 +189,7 @@ function handlePatientQuery(
       return {
         id: msgId,
         sender: "assistant",
-        text: "You do not currently have an active OPD token. Would you like to book a token at your nearest Primary Health Centre or District Hospital?",
+        text: "You do not currently have an active OPD token.",
         timestamp,
         role: "patient",
         language,
@@ -173,15 +207,11 @@ function handlePatientQuery(
       id: msgId,
       sender: "assistant",
       text:
-        language === "mr"
-          ? `तुमचा सक्रिय टोकन #${token.tokenNumber} आहे (${token.facilityName} - ${token.specialty}). तुमच्या पुढे सध्या ${ahead} रुग्ण आहेत. अंदाजे प्रतीक्षा वेळ: ${token.estimatedWaitMinutes} मिनिटे.`
-          : language === "ta"
-          ? `உங்கள் செயலில் உள்ள டோக்கன் #${token.tokenNumber} (${token.facilityName} - ${token.specialty}). உங்களுக்கு முன்னால் ${ahead} நோயாளிகள் உள்ளனர். மதிப்பிடப்பட்ட காத்திருப்பு நேரம்: ${token.estimatedWaitMinutes} நிமிடங்கள்.`
-          : `Your active token is #${token.tokenNumber} at ${token.facilityName}, ${token.specialty} OPD.\n\n` +
-            `• Now Serving: #${token.nowServing}\n` +
-            `• Patients Ahead: ${ahead}\n` +
-            `• Estimated Waiting Time: ${waitText}\n` +
-            `• Supervising Clinician: ${token.doctorName}`,
+        `Your active token is #${token.tokenNumber} at ${token.facilityName}, ${token.specialty} OPD.\n\n` +
+        `• Now Serving: #${token.nowServing}\n` +
+        `• Patients Ahead: ${ahead}\n` +
+        `• Estimated Waiting Time: ${waitText}\n` +
+        `• Doctor: ${token.doctorName}`,
       timestamp,
       role: "patient",
       language,
@@ -209,7 +239,7 @@ function handlePatientQuery(
     };
   }
 
-  // ── D. APPOINTMENT INTENT ──
+  // ── F. APPOINTMENT INTENT ──
   if (
     q.includes("appointment") ||
     q.includes("visit") ||
@@ -240,14 +270,10 @@ function handlePatientQuery(
       id: msgId,
       sender: "assistant",
       text:
-        language === "mr"
-          ? `तुमची पुढील नियोजित तपासणी ${next.date} रोजी सकाळी ${next.time} वाजता ${next.doctor} (${next.specialty}) यांच्याकडे ${next.facility} येथे आहे.`
-          : language === "ta"
-          ? `உங்கள் அடுத்த சந்திப்பு ${next.date} அன்று காலை ${next.time} மணிக்கு ${next.facility}-ல் ${next.doctor} உடன் திட்டமிடப்பட்டுள்ளது.`
-          : `Your next appointment is on ${next.date} at ${next.time} with ${next.doctor} (${next.specialty}) at ${next.facility}.\n\n` +
-            `• Status: Confirmed\n` +
-            `• Department: ${next.specialty}\n` +
-            `• Clinical Reason: Exertional Angina Follow-up & 12-Lead ECG Review`,
+        `Your next appointment is on ${next.date} at ${next.time} with ${next.doctor} (${next.specialty}) at ${next.facility}.\n\n` +
+        `• Status: Confirmed\n` +
+        `• Department: ${next.specialty}\n` +
+        `• Clinical Reason: Exertional Angina Follow-up & 12-Lead ECG Review`,
       timestamp,
       role: "patient",
       language,
@@ -267,7 +293,7 @@ function handlePatientQuery(
     };
   }
 
-  // ── E. PRESCRIPTIONS & MEDICATIONS INTENT ──
+  // ── G. PRESCRIPTIONS & MEDICATIONS INTENT ──
   if (
     q.includes("medicine") ||
     q.includes("prescription") ||
@@ -299,31 +325,11 @@ function handlePatientQuery(
       id: msgId,
       sender: "assistant",
       text:
-        language === "mr"
-          ? `तुमच्याकडे सध्या ${meds.length} सक्रिय औषधे आहेत:\n\n${medLines}\n\nडॉ. अनन्या राव यांनी ही औषधे नंदुरबार जिल्हा रुग्णालयात दिली आहेत.`
-          : language === "ta"
-          ? `உங்களிடம் தற்போது ${meds.length} செயலில் உள்ள மருந்துகள் உள்ளன:\n\n${medLines}`
-          : `You currently have ${meds.length} active medications prescribed by Dr. Ananya Rao at Nandurbar District Civil Hospital:\n\n${medLines}\n\n` +
-            `💡 Tip: You can request an automated generic refill for Metformin 500mg directly from your prescription wallet.`,
+        `You currently have ${meds.length} active medications prescribed by Dr. Ananya Rao at Nandurbar District Civil Hospital:\n\n${medLines}\n\n` +
+        `💡 You can reserve refills or view digital barcodes in your prescription wallet.`,
       timestamp,
       role: "patient",
       language,
-      widget: {
-        type: "patient_summary",
-        data: {
-          name: DEMO_PATIENT.name,
-          age: DEMO_PATIENT.age,
-          gender: DEMO_PATIENT.gender,
-          abhaId: DEMO_PATIENT.abhaId,
-          location: DEMO_PATIENT.location,
-          currentVisitReason: "Hypertension & Exertional Angina",
-          recentConsultation: "25 Aug 2026 · Dr. Ananya Rao",
-          recentDiagnostic: "12-Lead ECG · Normal Sinus Rhythm",
-          activeMedicationsCount: meds.length,
-          nextFollowUp: "30 Aug 2026 · 10:30 AM",
-          referralStatus: "Dhadgaon PHC ⟷ Nandurbar Civil (Accepted)",
-        },
-      },
       actionLink: {
         label: "View Digital Prescriptions & Refills",
         href: "/patient/prescriptions",
@@ -336,7 +342,7 @@ function handlePatientQuery(
     };
   }
 
-  // ── F. REFERRAL STATUS INTENT ──
+  // ── H. REFERRAL STATUS INTENT ──
   if (
     q.includes("referral") ||
     q.includes("referred") ||
@@ -361,16 +367,12 @@ function handlePatientQuery(
       id: msgId,
       sender: "assistant",
       text:
-        language === "mr"
-          ? `तुमचा संदर्भ ${ref.referringFacility} कडून ${ref.receivingFacility} कडे पाठवण्यात आला आहे आणि तो स्वीकारण्यात आला आहे (Accepted). तुमची भेट ${ref.appointmentDate} रोजी सकाळी ${ref.appointmentTime} वाजता नियोजित आहे.`
-          : language === "ta"
-          ? `உங்கள் பரிந்துரை ${ref.referringFacility}-லிருந்து ${ref.receivingFacility}-க்கு ஏற்கப்பட்டது. உங்கள் சந்திப்பு ${ref.appointmentDate} அன்று காலை ${ref.appointmentTime} மணிக்கு திட்டமிடப்பட்டுள்ளது.`
-          : `Your clinical referral from ${ref.referringFacility} to ${ref.receivingFacility} has been accepted.\n\n` +
-            `• Specialty: ${ref.specialty} Specialist\n` +
-            `• Status: Accepted & Scheduled\n` +
-            `• Receiving Doctor: ${ref.receivingDoctor}\n` +
-            `• Scheduled Date: ${ref.appointmentDate} at ${ref.appointmentTime}\n` +
-            `• Reason: ${ref.reason}`,
+        `Your clinical referral from ${ref.referringFacility} to ${ref.receivingFacility} has been accepted.\n\n` +
+        `• Specialty: ${ref.specialty} Specialist\n` +
+        `• Status: Accepted & Scheduled\n` +
+        `• Receiving Doctor: ${ref.receivingDoctor}\n` +
+        `• Scheduled Date: ${ref.appointmentDate} at ${ref.appointmentTime}\n` +
+        `• Reason: ${ref.reason}`,
       timestamp,
       role: "patient",
       language,
@@ -386,7 +388,7 @@ function handlePatientQuery(
     };
   }
 
-  // ── G. TODAY'S SCHEDULE & REMINDERS INTENT ──
+  // ── I. TODAY'S SCHEDULE & REMINDERS INTENT ──
   if (
     q.includes("today") ||
     q.includes("schedule") ||
@@ -413,15 +415,10 @@ function handlePatientQuery(
         label: "Open Care Overview",
         href: "/patient/dashboard",
       },
-      suggestedPrompts: [
-        "Check my active token",
-        "When is my next appointment?",
-        "Find Care near me",
-      ],
     };
   }
 
-  // ── H. HEALTH RECORDS & LAB REPORTS INTENT ──
+  // ── J. HEALTH RECORDS & LAB REPORTS INTENT ──
   if (
     q.includes("record") ||
     q.includes("report") ||
@@ -447,15 +444,10 @@ function handlePatientQuery(
         label: "Open Verified Health Records",
         href: "/patient/records",
       },
-      suggestedPrompts: [
-        "What medicines am I taking?",
-        "When is my next appointment?",
-        "Find Care near me",
-      ],
     };
   }
 
-  // ── I. NEARBY / BEST MATCH FACILITY & SERVICE DISCOVERY (ECG, Cardiology, Hospital near me) ──
+  // ── K. NEARBY / BEST MATCH FACILITY & SERVICE DISCOVERY (ECG, Cardiology, Hospital near me) ──
   if (
     q.includes("near me") ||
     q.includes("nearby") ||
@@ -524,27 +516,20 @@ function handlePatientQuery(
     };
   }
 
-  // ── J. FALLBACK: GENERAL PATIENT HELP ──
+  // ── L. CLEAN CONVERSATIONAL FALLBACK (No generic 5-paragraph capability dumps!) ──
   return {
     id: msgId,
     sender: "assistant",
     text:
-      `I am PRAGATI Care, your verified public health assistant.\n\n` +
-      `You can tell me if you're experiencing any symptoms (fever, migraine, cough, etc.) or ask about:\n` +
-      `• Your active OPD token & live queue position\n` +
-      `• Your upcoming appointments and checkups\n` +
-      `• Your active medications & digital prescriptions\n` +
-      `• Verified nearby healthcare facilities, diagnostics (ECG, X-Ray), and specialists\n` +
-      `• Your referral pathways and health records\n\n` +
-      `How can I assist your care journey today?`,
+      "I'm here to assist with your healthcare needs. You can tell me what symptoms you're experiencing, check your active OPD token, view your upcoming appointments, or find nearby healthcare facilities.",
     timestamp,
     role: "patient",
     language,
     suggestedPrompts: [
+      "I got heavy nausea",
       "I got fever",
       "What is my token?",
       "When is my next appointment?",
-      "What medicines am I taking?",
     ],
   };
 }

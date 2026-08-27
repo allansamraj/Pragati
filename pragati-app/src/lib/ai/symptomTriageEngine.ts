@@ -1,43 +1,43 @@
 // ─── PRAGATI ASSIST — SYMPTOM-AWARE GUIDED HEALTHCARE TRIAGE ENGINE ────────
-// Conversational Triage Lifecycle:
-// Symptom -> Ask Relevant Follow-up Questions -> Assess Basic Severity ->
-// Safe General Guidance -> Determine Care Requirement -> Use Location Context -> Return Verified Facilities.
+// Safe, structured, deterministic conversational triage engine with session memory.
+// NEVER diagnoses. NEVER invents. Screens red flags and guides to verified public facilities.
 
 import { ChatMessage, AssistantLanguage } from "./types";
 import { DEMO_FACILITIES, Facility } from "@/data/facilities";
 
-export type SymptomType =
+export type SymptomCategory =
+  | "nausea_vomiting"
   | "fever"
-  | "migraine_headache"
+  | "headache_migraine"
   | "cough_cold"
   | "stomach_pain"
   | "chest_discomfort"
-  | "pediatric_concern"
-  | "general_unwell";
+  | "pediatric_fever"
+  | "general_symptom";
 
 export type TriageStep =
   | "ASKED_DURATION"
-  | "ASKED_SEVERITY_OR_TEMP"
+  | "ASKED_ASSOCIATED_OR_TEMP"
   | "ASKED_RED_FLAGS"
-  | "COMPLETED_SAFE_GUIDANCE";
+  | "GUIDANCE_DELIVERED";
 
 export interface TriageSession {
-  symptomType: SymptomType;
+  category: SymptomCategory;
+  symptomName: string;
   step: TriageStep;
   duration?: string;
   temperature?: string;
-  severity?: "mild" | "moderate" | "severe";
-  associatedSymptoms?: string[];
+  associatedFindings?: string;
   hasRedFlags?: boolean;
   triageTier?: "ROUTINE" | "URGENT" | "EMERGENCY";
-  recommendedDepartment: string;
+  recommendedService: string;
 }
 
 const SESSION_STORAGE_KEY = "pragati_active_symptom_triage";
 
 export const symptomTriageEngine = {
   /**
-   * Retrieves active session from memory/storage.
+   * Retrieves active session from sessionStorage.
    */
   getSession(): TriageSession | null {
     if (typeof window === "undefined") return null;
@@ -70,20 +70,21 @@ export const symptomTriageEngine = {
   },
 
   /**
-   * Evaluates if a query initiates or continues a symptom triage lifecycle.
+   * Checks whether the user query is a direct follow-up to the active triage session.
    */
   processSymptomQuery(
-    query: string,
+    rawQuery: string,
     timestamp: string,
     msgId: string,
     language: AssistantLanguage
   ): ChatMessage | null {
-    const q = query.trim().toLowerCase();
+    const q = rawQuery.trim().toLowerCase();
     const session = this.getSession();
 
     // ── 1. SCREEN FOR IMMEDIATE CRITICAL RED FLAGS AT ANY TIME ──
     const hasImmediateEmergency =
       q.includes("cannot breathe") ||
+      q.includes("can't breathe") ||
       q.includes("severe chest pain") ||
       q.includes("chest pressure") ||
       q.includes("unconscious") ||
@@ -98,54 +99,66 @@ export const symptomTriageEngine = {
       return this.generateEmergencyResponse(timestamp, msgId, language);
     }
 
-    // ── 2. IF EXISTING ACTIVE SESSION IN PROGRESS, CONTINUE STEPWISE ──
+    // ── 2. IF ACTIVE SESSION IN PROGRESS, CONTINUE STEPWISE FLOW ──
     if (session) {
-      // Step A -> User answered Duration
-      if (session.step === "ASKED_DURATION") {
-        session.duration = query;
-        session.step = "ASKED_SEVERITY_OR_TEMP";
-        this.saveSession(session);
-        return this.generateSeverityQuestion(session, timestamp, msgId, language);
+      // If user is confirming nearby care search after triage
+      if (session.step === "GUIDANCE_DELIVERED" && (q === "yes" || q.includes("find nearby care") || q.includes("find care") || q.includes("hospital") || q.includes("clinic"))) {
+        this.clearSession();
+        return this.generateNearbyCareResults(session, timestamp, msgId, language);
       }
 
-      // Step B -> User answered Temperature or Severity details
-      if (session.step === "ASKED_SEVERITY_OR_TEMP") {
-        session.temperature = query;
+      // Step A -> User answered Duration
+      if (session.step === "ASKED_DURATION") {
+        session.duration = rawQuery;
+        session.step = "ASKED_ASSOCIATED_OR_TEMP";
+        this.saveSession(session);
+        return this.generateSecondQuestion(session, timestamp, msgId, language);
+      }
+
+      // Step B -> User answered Temperature or Associated Details
+      if (session.step === "ASKED_ASSOCIATED_OR_TEMP") {
+        session.associatedFindings = rawQuery;
+        if (session.category === "fever" || session.category === "pediatric_fever") {
+          session.temperature = rawQuery;
+        }
         session.step = "ASKED_RED_FLAGS";
         this.saveSession(session);
         return this.generateRedFlagQuestion(session, timestamp, msgId, language);
       }
 
-      // Step C -> User answered Red Flag screening
+      // Step C -> User answered Red Flags
       if (session.step === "ASKED_RED_FLAGS") {
-        const mentionsConcerningSigns =
+        const isConcerning =
           q.includes("yes") ||
-          q.includes("weak") ||
           q.includes("breath") ||
+          q.includes("weak") ||
           q.includes("vomit") ||
           q.includes("rash") ||
-          q.includes("severe");
+          q.includes("severe") ||
+          q.includes("cannot keep") ||
+          q.includes("dizzy");
 
-        session.hasRedFlags = mentionsConcerningSigns;
-        session.step = "COMPLETED_SAFE_GUIDANCE";
-        session.triageTier = mentionsConcerningSigns ? "URGENT" : "ROUTINE";
+        session.hasRedFlags = isConcerning;
+        session.step = "GUIDANCE_DELIVERED";
+        session.triageTier = isConcerning ? "URGENT" : "ROUTINE";
         this.saveSession(session);
 
-        return this.generateGuidanceAndFacilitiesResponse(session, timestamp, msgId, language);
+        return this.generateGuidanceAndAction(session, timestamp, msgId, language);
       }
     }
 
     // ── 3. DETECT NEW SYMPTOM INITIATION ──
-    const detectedSymptom = this.classifyInitialSymptom(q);
-    if (!detectedSymptom) {
-      return null; // Not a symptom query -> fall through to regular handlers
+    const detected = this.detectSymptomCategory(q);
+    if (!detected) {
+      return null; // Not a symptom query -> route to other platform intents
     }
 
-    // Initialize new session
+    // Start brand new triage session
     const newSession: TriageSession = {
-      symptomType: detectedSymptom,
+      category: detected.category,
+      symptomName: detected.name,
       step: "ASKED_DURATION",
-      recommendedDepartment: this.getDepartmentForSymptom(detectedSymptom),
+      recommendedService: this.getServiceForCategory(detected.category),
     };
     this.saveSession(newSession);
 
@@ -153,89 +166,179 @@ export const symptomTriageEngine = {
   },
 
   /**
-   * Classifies user input into primary symptom categories.
+   * Matches raw text against rich clinical symptom patterns.
    */
-  classifyInitialSymptom(q: string): SymptomType | null {
-    if (q.includes("fever") || q.includes("ताप") || q.includes("காய்ச்சல்") || q.includes("बुखार") || q.includes("temp") || q.includes("hot body") || q.includes("shivering")) {
-      if (q.includes("child") || q.includes("baby") || q.includes("kid") || q.includes("बाळ") || q.includes("குழந்தை")) {
-        return "pediatric_concern";
+  detectSymptomCategory(q: string): { category: SymptomCategory; name: string } | null {
+    // Nausea & Vomiting (Heavy nausea, vomiting, throwing up, feeling sick to stomach)
+    if (
+      q.includes("nausea") ||
+      q.includes("nauseous") ||
+      q.includes("vomit") ||
+      q.includes("vomiting") ||
+      q.includes("throwing up") ||
+      q.includes("feel like throwing up") ||
+      q.includes("उलटी") ||
+      q.includes("वांती") ||
+      q.includes("வாந்தி") ||
+      q.includes("जी मिचलाना")
+    ) {
+      return { category: "nausea_vomiting", name: "nausea / vomiting" };
+    }
+
+    // Fever & Chills
+    if (
+      q.includes("fever") ||
+      q.includes("temperature") ||
+      q.includes("feverish") ||
+      q.includes("hot body") ||
+      q.includes("shivering") ||
+      q.includes("chills") ||
+      q.includes("ताप") ||
+      q.includes("காய்ச்சல்") ||
+      q.includes("बुखार")
+    ) {
+      if (q.includes("child") || q.includes("baby") || q.includes("kid") || q.includes("बाळ") || q.includes("குழந்தை") || q.includes("बच्चा")) {
+        return { category: "pediatric_fever", name: "child fever" };
       }
-      return "fever";
+      return { category: "fever", name: "fever" };
     }
 
-    if (q.includes("migran") || q.includes("migraine") || q.includes("headache") || q.includes("head ache") || q.includes("डोकेदुखी") || q.includes("தலைவலி") || q.includes("सिरदर्द")) {
-      return "migraine_headache";
+    // Headache & Migraine
+    if (
+      q.includes("headache") ||
+      q.includes("head ache") ||
+      q.includes("migran") ||
+      q.includes("migraine") ||
+      q.includes("head is hurting") ||
+      q.includes("head pain") ||
+      q.includes("डोकेदुखी") ||
+      q.includes("தலைவலி") ||
+      q.includes("सिरदर्द")
+    ) {
+      return { category: "headache_migraine", name: "headache / migraine" };
     }
 
-    if (q.includes("cough") || q.includes("cold") || q.includes("khokla") || q.includes("सर्दी") || q.includes("இருமல்") || q.includes("खांसी") || q.includes("sore throat")) {
-      return "cough_cold";
+    // Cough & Cold
+    if (
+      q.includes("cough") ||
+      q.includes("cold") ||
+      q.includes("khokla") ||
+      q.includes("sore throat") ||
+      q.includes("congestion") ||
+      q.includes("sneezing") ||
+      q.includes("सर्दी") ||
+      q.includes("खोखला") ||
+      q.includes("இருமல்") ||
+      q.includes("खांसी")
+    ) {
+      return { category: "cough_cold", name: "cough & cold" };
     }
 
-    if (q.includes("stomach") || q.includes("belly") || q.includes("abdomen") || q.includes("पोटदुखी") || q.includes("വയറുവேதனை") || q.includes("पेट दर्द") || q.includes("cramp")) {
-      return "stomach_pain";
+    // Stomach / Abdominal Pain / Diarrhea
+    if (
+      q.includes("stomach") ||
+      q.includes("belly") ||
+      q.includes("abdominal") ||
+      q.includes("cramp") ||
+      q.includes("diarrhea") ||
+      q.includes("loose motion") ||
+      q.includes("पोटदुखी") ||
+      q.includes("വയറുവേதனை") ||
+      q.includes("पेट दर्द")
+    ) {
+      return { category: "stomach_pain", name: "stomach pain / discomfort" };
     }
 
-    if (q.includes("chest discomfort") || q.includes("chest tightness") || q.includes("छातीत दुखणे") || q.includes("நெஞ்சு வலி") || q.includes("palpitation")) {
-      return "chest_discomfort";
+    // Chest Discomfort / Tightness
+    if (
+      q.includes("chest tightness") ||
+      q.includes("chest discomfort") ||
+      q.includes("palpitation") ||
+      q.includes("छातीत दुखणे") ||
+      q.includes("நெஞ்சு வலி")
+    ) {
+      return { category: "chest_discomfort", name: "chest discomfort" };
     }
 
-    if (q.includes("sick") || q.includes("unwell") || q.includes("feeling down") || q.includes("weakness") || q.includes("आजार") || q.includes("உடல் நலம் சரியில்லை")) {
-      return "general_unwell";
+    // General / Back Pain / Body Ache / Dizziness
+    if (
+      q.includes("dizzy") ||
+      q.includes("dizziness") ||
+      q.includes("back pain") ||
+      q.includes("body pain") ||
+      q.includes("body ache") ||
+      q.includes("very weak") ||
+      q.includes("weakness") ||
+      q.includes("sick") ||
+      q.includes("unwell") ||
+      q.includes("आजार") ||
+      q.includes("உடல் நலம் சரியில்லை")
+    ) {
+      return { category: "general_symptom", name: "symptoms" };
     }
 
     return null;
   },
 
-  getDepartmentForSymptom(type: SymptomType): string {
-    switch (type) {
+  getServiceForCategory(category: SymptomCategory): string {
+    switch (category) {
       case "fever":
+      case "nausea_vomiting":
       case "cough_cold":
       case "stomach_pain":
-      case "general_unwell":
+      case "general_symptom":
         return "General Medicine";
-      case "migraine_headache":
+      case "headache_migraine":
         return "General Medicine / Neurology OPD";
       case "chest_discomfort":
         return "Cardiology OPD";
-      case "pediatric_concern":
+      case "pediatric_fever":
         return "Paediatrics OPD";
     }
   },
 
-  // ── GENERATE STEP 1: DURATION QUESTION ──
+  // ── 1. QUESTION 1: DURATION QUESTION (Always 1 short natural question) ──
   generateDurationQuestion(session: TriageSession, timestamp: string, msgId: string, language: AssistantLanguage): ChatMessage {
-    let questionText = "";
-    let prompts = ["Since yesterday", "Started today", "3 or more days ago"];
+    let question = "";
+    let prompts = ["Since yesterday", "Started this morning", "2-3 days ago"];
 
-    if (session.symptomType === "fever") {
-      questionText =
+    if (session.category === "nausea_vomiting") {
+      question =
         language === "mr"
-          ? "तुम्हाला बरे वाटत नाही हे ऐकून वाईट वाटले. योग्य उपाय शोधण्यात मी तुम्हाला मदत करू शकेन.\n\nतुम्हाला कधीपासून ताप येत आहे?"
+          ? "तुम्हाला अस्वस्थ वाटत आहे याबद्दल वाईट वाटले. तुम्हाला कधीपासून मळमळ (Nausea) किंवा उलट्यांचा त्रास होत आहे?"
           : language === "ta"
-          ? "உங்களுக்கு உடல் நலம் சரியில்லை என்பதை அறிந்து வருந்துகிறேன். அடுத்த கட்டத்தை கண்டறிய நான் உதவுகிறேன்.\n\nஉங்களுக்கு எப்போது இருந்து காய்ச்சல் உள்ளது?"
-          : language === "hi"
-          ? "मुझे खेद है कि आप अस्वस्थ महसूस कर रहे हैं। मैं अगला सही कदम उठाने में आपकी मदद कर सकता हूँ।\n\nआपको कब से बुखार है?"
-          : "I'm sorry you're feeling unwell. I can help you figure out the next step.\n\nSince when have you had the fever?";
-    } else if (session.symptomType === "migraine_headache") {
-      questionText =
+          ? "உங்களுக்கு உடல் நலம் சரியில்லை என்பதை அறிந்து வருந்துகிறேன். இந்த குமட்டல் (Nausea) எப்போது இருந்து ஆரம்பமானது?"
+          : "I'm sorry you're feeling unwell. Since when have you been feeling nauseous?";
+      prompts = ["Since this morning", "Since yesterday", "After eating food"];
+    } else if (session.category === "fever") {
+      question =
         language === "mr"
-          ? "तीव्र डोकेदुखी किंवा मायग्रेन त्रासदायक असू शकते. सुरक्षित मार्गदर्शनासाठी, ही डोकेदुखी कधीपासून सुरू झाली आहे?"
+          ? "तुम्हाला बरे वाटत नाही हे ऐकून वाईट वाटले. तुम्हाला कधीपासून ताप येत आहे?"
           : language === "ta"
-          ? "கடுமையான தலைவலி மிகவும் சிரமமாக இருக்கும். இந்த தலைவலி எப்போது ஆரம்பித்தது?"
-          : "I understand you're experiencing a severe headache or migraine. Let's figure out what care you need.\n\nSince when did this headache begin?";
+          ? "உங்களுக்கு காய்ச்சல் உள்ளது என்பதை அறிந்து வருந்துகிறேன். எப்போது இருந்து காய்ச்சல் உள்ளது?"
+          : "I'm sorry you're feeling unwell. Since when have you had the fever?";
+      prompts = ["Since yesterday", "Started today", "3 or more days ago"];
+    } else if (session.category === "headache_migraine") {
+      question = "I understand you're experiencing a headache or migraine. Since when did this headache begin?";
       prompts = ["A few hours ago", "Since yesterday", "Recurring for several days"];
-    } else if (session.symptomType === "pediatric_concern") {
-      questionText = "Children's health requires careful attention. Since when has the child been experiencing fever or symptoms?";
-      prompts = ["Since today morning", "Since yesterday", "More than 2 days"];
+    } else if (session.category === "pediatric_fever") {
+      question = "Children's health requires careful attention. Since when has the child been experiencing fever?";
+      prompts = ["Since this morning", "Since yesterday", "More than 2 days"];
+    } else if (session.category === "cough_cold") {
+      question = "I'm sorry you're dealing with a cough or cold. Since when have you had these symptoms?";
+      prompts = ["Since 2-3 days", "Started today", "More than a week"];
+    } else if (session.category === "stomach_pain") {
+      question = "I'm sorry you're experiencing stomach discomfort. Since when have you had the pain?";
+      prompts = ["Started a few hours ago", "Since yesterday", "After eating food"];
     } else {
-      questionText = `I understand you're experiencing symptoms. To guide you to the right care:\n\nSince when have you had these symptoms?`;
-      prompts = ["Started today", "Since 1-2 days", "More than 3 days"];
+      question = "I'm sorry you're not feeling well. Since when have you been experiencing these symptoms?";
+      prompts = ["Started today", "Since yesterday", "2-3 days ago"];
     }
 
     return {
       id: msgId,
       sender: "assistant",
-      text: questionText,
+      text: question,
       timestamp,
       role: "patient",
       language,
@@ -243,30 +346,35 @@ export const symptomTriageEngine = {
     };
   },
 
-  // ── GENERATE STEP 2: SEVERITY / TEMPERATURE QUESTION ──
-  generateSeverityQuestion(session: TriageSession, timestamp: string, msgId: string, language: AssistantLanguage): ChatMessage {
-    let questionText = "";
-    let prompts = ["Around 100-101°F", "102°F or higher", "Haven't measured thermometer"];
+  // ── 2. QUESTION 2: SEVERITY OR ASSOCIATED DETAILS (Context-dependent) ──
+  generateSecondQuestion(session: TriageSession, timestamp: string, msgId: string, language: AssistantLanguage): ChatMessage {
+    let question = "";
+    let prompts = ["Around 100-101°F", "102°F or higher", "Haven't measured"];
 
-    if (session.symptomType === "fever" || session.symptomType === "pediatric_concern") {
-      questionText =
-        language === "mr"
-          ? "धन्यवाद. तुम्हाला शरीराचे तापमान माहित आहे का (उदा. थर्मामीटरने मोजले आहे का)?"
-          : language === "ta"
-          ? "நன்றி. காய்ச்சலின் வெப்பநிலை அளவு உங்களுக்கு தெரியுமா (தெர்மோமீட்டரில் அளந்தீர்களா)?"
-          : "Thanks. Do you know your temperature?";
-    } else if (session.symptomType === "migraine_headache") {
-      questionText = "Thanks. How would you describe the pain—is it throbbing on one side, or accompanied by sensitivity to bright light or nausea?";
+    if (session.category === "fever" || session.category === "pediatric_fever") {
+      question = "Thanks. Do you know your temperature?";
+      prompts = ["Around 100-101°F", "102°F or higher", "Haven't measured"];
+    } else if (session.category === "nausea_vomiting") {
+      question = "Have you also been vomiting, having severe abdominal pain, dizziness, fever, or difficulty keeping fluids down?";
+      prompts = ["No, just nausea", "Yes, vomiting too", "Severe stomach cramps"];
+    } else if (session.category === "headache_migraine") {
+      question = "How would you describe the pain—is it throbbing on one side, or accompanied by sensitivity to bright light or nausea?";
       prompts = ["Throbbing with light sensitivity", "Mild constant tension", "Severe disabling pain"];
+    } else if (session.category === "cough_cold") {
+      question = "Is the cough dry, or do you have phlegm/mucus along with mild fever or body ache?";
+      prompts = ["Dry cough", "Cough with phlegm", "Sore throat & body ache"];
+    } else if (session.category === "stomach_pain") {
+      question = "Is the pain sharp and localized in one area, or a general dull cramp?";
+      prompts = ["General cramp", "Sharp localized pain", "Accompanied by nausea"];
     } else {
-      questionText = "Thanks. Are you experiencing chills, body ache, or significant weakness along with this?";
-      prompts = ["Mild discomfort", "Severe weakness & chills", "No chills"];
+      question = "Are you experiencing severe weakness, chills, or dizziness along with this?";
+      prompts = ["Mild weakness", "Severe chills & body ache", "No chills"];
     }
 
     return {
       id: msgId,
       sender: "assistant",
-      text: questionText,
+      text: question,
       timestamp,
       role: "patient",
       language,
@@ -274,84 +382,84 @@ export const symptomTriageEngine = {
     };
   },
 
-  // ── GENERATE STEP 3: RED FLAG SCREENING QUESTION ──
+  // ── 3. QUESTION 3: RED FLAG SCREENING ──
   generateRedFlagQuestion(session: TriageSession, timestamp: string, msgId: string, language: AssistantLanguage): ChatMessage {
-    const questionText =
-      language === "mr"
-          ? "धन्यवाद. तुम्हाला श्वास घेण्यास त्रास, तीव्र अशक्तपणा, सतत उलट्या, तीव्र मानदुखी, किंवा त्वचेवर पुरळ येत आहे का?"
-          : language === "ta"
-          ? "நன்றி. உங்களுக்கு மூச்சு விடுவதில் சிரமம், தீவிர பலவீனம், தொடர் வாந்தி, அல்லது தோலில் தடிப்புகள் உள்ளதா?"
-          : "Thanks. Do you have any difficulty breathing, severe weakness, confusion, persistent vomiting, severe sudden headache, or rash?";
+    const question =
+      session.category === "fever"
+        ? "Are you having any difficulty breathing, severe weakness, confusion, persistent vomiting, severe headache, or rash?"
+        : session.category === "nausea_vomiting"
+        ? "Are you experiencing severe dehydration (dry mouth, dark urine), fainting, confusion, high fever, or blood in vomit?"
+        : "Do you have any difficulty breathing, severe weakness, confusion, persistent vomiting, sudden severe chest pain, or rash?";
 
     return {
       id: msgId,
       sender: "assistant",
-      text: questionText,
+      text: question,
       timestamp,
       role: "patient",
       language,
-      suggestedPrompts: ["No other symptoms", "Feeling mild weakness", "Yes, have breathing trouble"],
+      suggestedPrompts: ["No", "Feeling mild weakness", "Yes, have breathing trouble"],
     };
   },
 
-  // ── GENERATE STEP 4: SAFE GUIDANCE & FACILITY RECOMMENDATION ──
-  generateGuidanceAndFacilitiesResponse(
-    session: TriageSession,
-    timestamp: string,
-    msgId: string,
-    language: AssistantLanguage
-  ): ChatMessage {
-    // If red flags were detected in response:
+  // ── 4. STEP 4: SAFE GUIDANCE & FACILITY ACTION ──
+  generateGuidanceAndAction(session: TriageSession, timestamp: string, msgId: string, language: AssistantLanguage): ChatMessage {
+    // If red flags were answered positively
     if (session.hasRedFlags) {
-      const facilities = DEMO_FACILITIES.slice(0, 2).map((f, idx) => ({
-        id: f.id,
-        name: f.name,
-        type: f.type,
-        distanceKm: f.distanceKm || (idx === 0 ? 2.4 : 5.8),
-        travelMinutes: f.travelMinutes || (idx === 0 ? 10 : 22),
-        specialistAvailable: true,
-        specialistName: f.doctors[0]?.name || "Medical Officer On Duty",
-        diagnosticAvailable: true,
-        diagnosticWaitMinutes: 10,
-        queueWaitMinutes: f.queue?.estimatedWait || 15,
-        isBestMatch: idx === 0,
-      }));
-
+      const nearest = DEMO_FACILITIES[0];
       return {
         id: msgId,
         sender: "assistant",
         text:
-          "⚠️ Clinical Notice: Because of your reported weakness or associated symptoms, an in-person medical evaluation at an open healthcare facility is advised.\n\n" +
-          `Here are the verified public healthcare facilities near your current location with active doctors and open OPD:`,
+          "⚠️ Clinical Notice: Because of your reported weakness or associated symptoms, an in-person medical evaluation at an open healthcare facility is recommended.\n\n" +
+          "I can find verified public healthcare facilities near your current location with open OPD and active physicians.",
         timestamp,
         role: "patient",
         language,
-        widget: {
-          type: "facility_list",
-          data: facilities,
-        },
         actionLink: {
-          label: "Find Nearest Care & Book Token",
+          label: "Find Healthcare Facilities Near You",
           href: "/patient/find-care?specialty=general",
         },
         suggestedPrompts: [
-          "Book token at District Hospital",
-          "Check active queue wait",
+          "Find Nearby Care",
+          "Check doctor availability",
           "Call 108 if urgent",
         ],
       };
     }
 
-    // Routine self-care guidance without red flags
-    const guidance =
-      `Based on what you've told me, there are no emergency warning signs in your answers so far.\n\n` +
-      `Safe Self-Care Guidance:\n` +
-      `• Rest adequately and avoid strenuous physical activity.\n` +
-      `• Drink plenty of fluids (boiled water, ORS, warm soups) to avoid dehydration.\n` +
-      `• Wear comfortable, lightweight clothing and stay in a well-ventilated space.\n` +
-      `• Monitor your temperature periodically.\n` +
-      `• If symptoms persist beyond 3 days, worsen, or you develop breathing trouble or persistent vomiting, seek medical evaluation.\n\n` +
-      `I can also help you find verified public healthcare facilities near your current location if you would like to consult a doctor.`;
+    // Routine safe self-care guidance based on symptom
+    let guidance = "";
+    if (session.category === "nausea_vomiting") {
+      guidance =
+        "Based on what you've told me, there are no emergency warning signs in your answers so far.\n\n" +
+        "Safe Self-Care Guidance for Nausea:\n" +
+        "• Take small sips of clear fluids (water, ORS, weak ginger tea) rather than large gulps.\n" +
+        "• Rest in an upright or slightly elevated position; avoid lying completely flat immediately after drinking.\n" +
+        "• Once nausea subsides, stick to bland, easy-to-digest foods (khichdi, toast, bananas).\n" +
+        "• Avoid spicy, greasy, or strong-smelling foods.\n" +
+        "• If nausea persists beyond 24–48 hours or you cannot keep liquids down, seek in-person medical care.\n\n" +
+        "Would you like me to find verified healthcare facilities near your current location?";
+    } else if (session.category === "fever" || session.category === "pediatric_fever") {
+      guidance =
+        "Thanks. Based on what you've told me, I don't see an emergency warning sign in the information you've provided.\n\n" +
+        "Safe Self-Care Guidance for Fever:\n" +
+        "• Rest adequately and avoid strenuous physical activity.\n" +
+        "• Stay well-hydrated by drinking plenty of fluids (water, ORS, warm broths).\n" +
+        "• Wear light, breathable clothing and stay in a comfortable, well-ventilated room.\n" +
+        "• Monitor your temperature periodically.\n" +
+        "• If the fever persists for more than 3 days, rises sharply, or new concerning symptoms develop, seek medical advice.\n\n" +
+        (session.temperature ? "Because your temperature is elevated, I can help you find a nearby healthcare facility if you'd like." : "I can also help you find verified healthcare facilities near your current location.");
+    } else {
+      guidance =
+        "Based on what you've told me, there are no emergency warning signs in your answers so far.\n\n" +
+        "Safe Self-Care Guidance:\n" +
+        "• Rest in a quiet, comfortable space and avoid physical overexertion.\n" +
+        "• Maintain good hydration with regular sips of water.\n" +
+        "• Monitor your symptoms over the next 24 hours.\n" +
+        "• If symptoms worsen or persist, an in-person clinical checkup is advised.\n\n" +
+        "I can find verified public healthcare facilities near your current location if you would like a consultation.";
+    }
 
     return {
       id: msgId,
@@ -365,22 +473,69 @@ export const symptomTriageEngine = {
         href: "/patient/find-care",
       },
       suggestedPrompts: [
-        "Find Healthcare Near Me",
-        "What medicines am I currently taking?",
+        "Find Nearby Care",
+        "What medicines am I taking?",
         "Check my active token",
       ],
     };
   },
 
-  // ── EMERGENCY IMMEDIATE ESCALATION ──
+  // ── GENERATE ACTUAL NEARBY HEALTHCARE FACILITIES CARD ──
+  generateNearbyCareResults(session: TriageSession, timestamp: string, msgId: string, language: AssistantLanguage): ChatMessage {
+    const facilities = DEMO_FACILITIES.slice(0, 2).map((f, idx) => ({
+      id: f.id,
+      name: f.name,
+      type: f.type,
+      distanceKm: f.distanceKm || (idx === 0 ? 2.4 : 5.8),
+      travelMinutes: f.travelMinutes || (idx === 0 ? 10 : 22),
+      matchScore: idx === 0 ? 94 : 82,
+      specialistAvailable: true,
+      specialistName: f.doctors[0]?.name || "Medical Officer On Duty",
+      diagnosticAvailable: true,
+      diagnosticWaitMinutes: 10,
+      queueWaitMinutes: f.queue?.estimatedWait || 15,
+      isBestMatch: idx === 0,
+    }));
+
+    return {
+      id: msgId,
+      sender: "assistant",
+      text:
+        `I found these verified public healthcare facilities near your current location:\n\n` +
+        `1. ${facilities[0].name} — ${facilities[0].distanceKm} km away (~${facilities[0].travelMinutes} min travel)\n` +
+        `   • Department: ${session.recommendedService}\n` +
+        `   • OPD Status: Open Now (Queue: ~${facilities[0].queueWaitMinutes} min wait)\n` +
+        `   • Doctor: ${facilities[0].specialistName}\n\n` +
+        `2. ${facilities[1].name} — ${facilities[1].distanceKm} km away\n\n` +
+        `Would you like to book an OPD token or get turn-by-turn driving directions?`,
+      timestamp,
+      role: "patient",
+      language,
+      widget: {
+        type: "facility_list",
+        data: facilities,
+      },
+      actionLink: {
+        label: "Open Care Finder & Map",
+        href: "/patient/find-care",
+      },
+      suggestedPrompts: [
+        "Book a token at District Hospital",
+        "Check my active token",
+        "When is my next appointment?",
+      ],
+    };
+  },
+
+  // ── EMERGENCY RESPONSE ──
   generateEmergencyResponse(timestamp: string, msgId: string, language: AssistantLanguage): ChatMessage {
     const nearest = DEMO_FACILITIES[0];
     return {
       id: msgId,
       sender: "assistant",
       text:
-        "🚨 IMMEDIATE MEDICAL ATTENTION RECOMMENDED:\n\n" +
-        "These symptoms may require urgent clinical stabilization. Please seek emergency medical care immediately or call the 108 emergency ambulance.",
+        "🚨 EMERGENCY MEDICAL NOTICE:\n\n" +
+        "Your symptoms may require urgent medical attention. Please seek emergency care immediately or call the 108 emergency ambulance.",
       timestamp,
       role: "patient",
       language,
