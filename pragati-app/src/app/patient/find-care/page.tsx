@@ -158,9 +158,15 @@ function FindCareContent() {
   }
   if (ownershipFilter !== "all") {
     facilities = facilities.filter((f) => {
-      if (ownershipFilter === "government") return f.ownership === "government";
-      if (ownershipFilter === "private_empaneled") return f.ownership === "private_empaneled" || f.isPmJayEmpaneled;
-      if (ownershipFilter === "private") return f.ownership === "private" || f.ownership === "private_empaneled";
+      if (ownershipFilter === "government") {
+        return f.ownership === "government" || (!f.ownership && !f.type.includes("Private") && !f.type.includes("Super-Specialty"));
+      }
+      if (ownershipFilter === "private_empaneled") {
+        return f.ownership === "private_empaneled" || Boolean(f.isPmJayEmpaneled);
+      }
+      if (ownershipFilter === "private") {
+        return f.ownership === "private" || f.ownership === "private_empaneled" || f.type.includes("Private") || f.type.includes("Super-Specialty");
+      }
       return true;
     });
   }

@@ -68,7 +68,14 @@ export async function getNearbyFacilities({
   // dynamically generate realistic nearby neighborhood facilities (Government & PM-JAY Private)
   const closestDist = Math.min(...allWithDistance.map((f) => f.distanceKm || 9999));
   if (closestDist > 25) {
-    const localGenerated = generateLocalNearbyFacilities(lat, lng, locality);
+    const localGenerated = generateLocalNearbyFacilities(lat, lng, locality).map((f) => {
+      const dist = calculateDistance(lat, lng, f.lat, f.lng);
+      return {
+        ...f,
+        distanceKm: dist,
+        travelMinutes: calculateTravelMinutes(dist),
+      };
+    });
     allWithDistance = [...localGenerated, ...allWithDistance];
   }
 
