@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { FileText, Download, Printer, X, ShieldCheck, QrCode, Building2, CheckCircle2, AlertTriangle, Activity } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLocationContext } from "@/lib/context/LocationContext";
 
 interface GovReportDetail {
   id: string;
@@ -158,6 +159,8 @@ const REPORTS = [
 ];
 
 export default function ReportsPage() {
+  const { governmentLocation } = useLocationContext();
+  const state = governmentLocation?.state || "Tamil Nadu";
   const [selectedReport, setSelectedReport] = useState<GovReportDetail | null>(null);
 
   return (
@@ -241,7 +244,7 @@ export default function ReportsPage() {
                 <div className="border-b-2 border-burgundy-800 pb-4 flex items-start justify-between gap-4">
                   <div>
                     <div className="text-[10.5px] font-bold tracking-wider text-burgundy-700 uppercase">
-                      Government of Maharashtra · Public Health &amp; Family Welfare
+                      Government of {state} · Public Health &amp; Family Welfare
                     </div>
                     <h2 className="text-[18px] font-black text-ink-primary tracking-tight">
                       {selectedReport.title.toUpperCase()}

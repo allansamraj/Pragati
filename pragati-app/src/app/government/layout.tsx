@@ -13,9 +13,11 @@ import {
   ChevronLeft, ChevronRight, Bell
 } from "lucide-react";
 
+import { useLocationContext } from "@/lib/context/LocationContext";
+
 const NAV = [
   { href: "/government/dashboard",    icon: LayoutDashboard, label: "Overview" },
-  { href: "/government/map",           icon: Map,             label: "MH District Map" },
+  { href: "/government/map",           icon: Map,             label: "Regional Health Map" },
   { href: "/government/facilities",    icon: Building2,       label: "Facilities" },
   { href: "/government/accessibility", icon: Activity,        label: "Accessibility" },
   { href: "/government/resources",     icon: Package,         label: "Resources" },
@@ -27,6 +29,8 @@ const NAV = [
 ];
 
 export default function GovernmentLayout({ children }: { children: React.ReactNode }) {
+  const { governmentLocation } = useLocationContext();
+  const state = governmentLocation?.state || "Tamil Nadu";
   const pathname = usePathname();
   const router = useRouter();
   const [loaded, setLoaded] = useState(false);
@@ -68,7 +72,7 @@ export default function GovernmentLayout({ children }: { children: React.ReactNo
               </div>
               <div>
                 <span className="text-[13px] font-extrabold text-white tracking-tight leading-none block">PRAGATI</span>
-                <span className="text-[9px] font-bold text-amber-400 tracking-wider uppercase leading-none block mt-0.5">MAHARASHTRA GOV</span>
+                <span className="text-[9px] font-bold text-amber-400 tracking-wider uppercase leading-none block mt-0.5">{state.toUpperCase()} GOV</span>
               </div>
             </div>
           )}
@@ -83,7 +87,7 @@ export default function GovernmentLayout({ children }: { children: React.ReactNo
 
         {!collapsed && (
           <div className="mx-3 mt-3 mb-1 px-3 py-2.5 bg-white/5 border border-white/10 rounded-[10px]">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Government of Maharashtra</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Government of {state}</div>
             <div className="text-[12px] font-bold text-white">Public Health Intelligence</div>
             <div className="text-[9.5px] text-amber-300 font-bold mt-1 uppercase tracking-widest flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /> Live Surveillance

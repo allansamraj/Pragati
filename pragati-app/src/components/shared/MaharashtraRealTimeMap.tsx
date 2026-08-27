@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import { MapPin, Navigation, Layers, ShieldCheck, Activity, Users, AlertTriangle, ExternalLink, ChevronRight } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { MapPin, Navigation, Layers, ShieldCheck, Activity, Users, AlertTriangle, ExternalLink, ChevronRight, Compass } from "lucide-react";
+import { useLocationContext } from "@/lib/context/LocationContext";
 
 export type AccessLevel = "good" | "moderate" | "gap";
 
@@ -21,6 +22,33 @@ export interface DistrictMetric {
   recommendedAction?: string;
 }
 
+// ─── TAMIL NADU DISTRICTS (CHENNAI DEMO ENVIRONMENT) ───────────────────────────
+export const TAMIL_NADU_DISTRICTS: DistrictMetric[] = [
+  { id: "tn-chennai", name: "Chennai City & Metro", division: "Northern Hub", access: "good", score: 94, lat: 13.0827, lng: 80.2707, specialists: "High", diagnostics: "High", medicines: "Optimal", facilitiesCount: 148 },
+  { id: "tn-coimbatore", name: "Coimbatore", division: "Western Hub", access: "good", score: 89, lat: 11.0168, lng: 76.9558, specialists: "High", diagnostics: "High", medicines: "Optimal", facilitiesCount: 112 },
+  { id: "tn-madurai", name: "Madurai", division: "Southern Hub", access: "good", score: 85, lat: 9.9252, lng: 78.1198, specialists: "High", diagnostics: "Moderate", medicines: "Optimal", facilitiesCount: 98 },
+  { id: "tn-trichy", name: "Tiruchirappalli", division: "Central Delta", access: "good", score: 82, lat: 10.7905, lng: 78.7047, specialists: "Moderate", diagnostics: "High", medicines: "Optimal", facilitiesCount: 86 },
+  { id: "tn-salem", name: "Salem", division: "Western", access: "good", score: 78, lat: 11.6643, lng: 78.1460, specialists: "Moderate", diagnostics: "Moderate", medicines: "Optimal", facilitiesCount: 76 },
+  { id: "tn-vellore", name: "Vellore", division: "Northern", access: "moderate", score: 72, lat: 12.9165, lng: 79.1325, specialists: "Moderate", diagnostics: "High", medicines: "Moderate", facilitiesCount: 70 },
+  { id: "tn-chengalpattu", name: "Chengalpattu & OMR", division: "Northern Coastal", access: "moderate", score: 68, lat: 12.6841, lng: 79.9836, specialists: "Moderate", diagnostics: "Moderate", medicines: "Moderate", facilitiesCount: 64, primaryIssue: "Suburban workload surge in Tambaram & Kelambakkam", recommendedAction: "Expand UPHC daycare teleconsultation capacity" },
+  { id: "tn-tirunelveli", name: "Tirunelveli", division: "Deep South", access: "moderate", score: 65, lat: 8.7139, lng: 77.7567, specialists: "Low", diagnostics: "Moderate", medicines: "Moderate", facilitiesCount: 58 },
+  { id: "tn-thiruvallur", name: "Thiruvallur", division: "Northern Industrial", access: "moderate", score: 62, lat: 13.1438, lng: 79.9083, specialists: "Low", diagnostics: "Limited", medicines: "Moderate", facilitiesCount: 56, primaryIssue: "Diagnostic turn-around delays in rural CHCs", recommendedAction: "Deploy tele-radiology pipeline" },
+  { id: "tn-villupuram", name: "Villupuram", division: "Central Delta Spoke", access: "gap", score: 48, lat: 11.9401, lng: 79.4861, specialists: "Low", diagnostics: "Limited", medicines: "Critical Low", facilitiesCount: 52, primaryIssue: "Essential medicine stockouts during surge", recommendedAction: "Emergency TNMSC warehouse dispatch" },
+  { id: "tn-dharmapuri", name: "Dharmapuri", division: "Western Tribal Blocks", access: "gap", score: 42, lat: 12.1211, lng: 78.1582, specialists: "Critical", diagnostics: "Limited", medicines: "Limited", facilitiesCount: 44, primaryIssue: "Cardiology specialist vacancy (42% coverage)", recommendedAction: "Permanent telemedicine hub linking Chennai GGH" },
+  { id: "tn-nilgiris", name: "The Nilgiris", division: "Highland Tribal Sector", access: "gap", score: 39, lat: 11.4102, lng: 76.6950, specialists: "Critical", diagnostics: "Critical", medicines: "Limited", facilitiesCount: 38, primaryIssue: "Diagnostic machine downtime in hilly terrain", recommendedAction: "Mobile medical units & solar tele-link spokes" },
+];
+
+// ─── CHENNAI URBAN HEALTH ZONES ────────────────────────────────────────────────
+export const CHENNAI_ZONES: DistrictMetric[] = [
+  { id: "chn-central", name: "Park Town / Central Zone", division: "Chennai Central", access: "good", score: 96, lat: 13.0827, lng: 80.2707, specialists: "Optimal", diagnostics: "Optimal", medicines: "Optimal", facilitiesCount: 32 },
+  { id: "chn-triplicane", name: "Triplicane & Royapettah", division: "Chennai Central-South", access: "good", score: 92, lat: 13.0583, lng: 80.2747, specialists: "High", diagnostics: "High", medicines: "Optimal", facilitiesCount: 28 },
+  { id: "chn-teynampet", name: "Teynampet & T. Nagar", division: "Chennai South-Central", access: "good", score: 88, lat: 13.0418, lng: 80.2341, specialists: "High", diagnostics: "High", medicines: "Optimal", facilitiesCount: 26 },
+  { id: "chn-annanagar", name: "Anna Nagar & Kilpauk", division: "Chennai West", access: "good", score: 86, lat: 13.0850, lng: 80.2101, specialists: "High", diagnostics: "Moderate", medicines: "Optimal", facilitiesCount: 24 },
+  { id: "chn-adyar", name: "Adyar & Mylapore", division: "Chennai South", access: "good", score: 84, lat: 13.0012, lng: 80.2565, specialists: "Moderate", diagnostics: "High", medicines: "Optimal", facilitiesCount: 22 },
+  { id: "chn-north", name: "Stanley / North Chennai", division: "Chennai North", access: "moderate", score: 68, lat: 13.1075, lng: 80.2872, specialists: "Moderate", diagnostics: "Moderate", medicines: "Moderate", facilitiesCount: 16, primaryIssue: "High OPD patient density in northern dispensaries", recommendedAction: "Deploy additional evening token counters" },
+];
+
+// ─── MAHARASHTRA DISTRICTS (DEPLOYMENT READY) ──────────────────────────────────
 export const MAHARASHTRA_DISTRICTS: DistrictMetric[] = [
   { id: "mh-mumbai", name: "Mumbai City & Suburban", division: "Konkan", access: "good", score: 92, lat: 19.0760, lng: 72.8777, specialists: "High", diagnostics: "High", medicines: "Optimal", facilitiesCount: 142 },
   { id: "mh-pune", name: "Pune", division: "Pune", access: "good", score: 88, lat: 18.5204, lng: 73.8567, specialists: "High", diagnostics: "High", medicines: "Optimal", facilitiesCount: 118 },
@@ -49,18 +77,44 @@ interface MapProps {
 }
 
 export function MaharashtraRealTimeMap({ onSelectDistrict, selectedId }: MapProps) {
+  const { governmentLocation } = useLocationContext();
+  const state = governmentLocation?.state || "Tamil Nadu";
+  const isTamilNadu = state.toLowerCase().includes("tamil") || state.toLowerCase().includes("chennai");
+
+  const [zoneView, setZoneView] = useState<"state" | "city">("state");
+
+  const activeDistrictList = isTamilNadu
+    ? (zoneView === "city" ? CHENNAI_ZONES : TAMIL_NADU_DISTRICTS)
+    : MAHARASHTRA_DISTRICTS;
+
+  const defaultFocus = isTamilNadu
+    ? (zoneView === "city" ? CHENNAI_ZONES[0] : TAMIL_NADU_DISTRICTS[10]) // Dharmapuri default focus (gap) or Chennai Central
+    : MAHARASHTRA_DISTRICTS[11]; // Nandurbar default
+
   const [activeDistrict, setActiveDistrict] = useState<DistrictMetric>(
-    MAHARASHTRA_DISTRICTS.find((d) => d.id === selectedId) || MAHARASHTRA_DISTRICTS[11] // Nandurbar default
+    activeDistrictList.find((d) => d.id === selectedId) || defaultFocus
   );
   const [filter, setFilter] = useState<"all" | AccessLevel>("all");
 
-  const filteredDistricts = MAHARASHTRA_DISTRICTS.filter(
+  useEffect(() => {
+    setActiveDistrict(
+      activeDistrictList.find((d) => d.id === selectedId) || defaultFocus
+    );
+  }, [zoneView, state, selectedId]);
+
+  const filteredDistricts = activeDistrictList.filter(
     (d) => filter === "all" || d.access === filter
   );
 
-  // OpenStreetMap embed coordinates bounding Maharashtra state:
-  // bbox=72.6, 15.6, 80.9, 22.1
-  const mapIframeSrc = `https://www.openstreetmap.org/export/embed.html?bbox=72.6,15.6,80.9,22.1&layer=mapnik&marker=${activeDistrict.lat},${activeDistrict.lng}`;
+  // Live OpenStreetMap embed coordinates dynamically set according to state & district:
+  // Tamil Nadu Bounding Box: bbox=76.1,8.1,80.6,13.8
+  // Chennai City Bounding Box: bbox=80.14,12.92,80.34,13.16
+  // Maharashtra Bounding Box: bbox=72.6,15.6,80.9,22.1
+  const bbox = isTamilNadu
+    ? (zoneView === "city" ? "80.14,12.92,80.34,13.16" : "76.1,8.1,80.6,13.8")
+    : "72.6,15.6,80.9,22.1";
+
+  const mapIframeSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${activeDistrict.lat},${activeDistrict.lng}`;
 
   const handleSelect = (d: DistrictMetric) => {
     setActiveDistrict(d);
@@ -69,9 +123,34 @@ export function MaharashtraRealTimeMap({ onSelectDistrict, selectedId }: MapProp
 
   return (
     <div className="space-y-3">
-      {/* Top Filter Bar */}
+      {/* Top Filter Bar & Scope Switcher */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
+          {isTamilNadu && (
+            <div className="flex items-center bg-bg border border-[rgba(124,45,45,0.12)] p-0.5 rounded-[8px] mr-1">
+              <button
+                onClick={() => setZoneView("state")}
+                className={`text-[11px] font-bold px-2.5 py-1 rounded-[6px] transition-all cursor-pointer ${
+                  zoneView === "state"
+                    ? "bg-burgundy-700 text-white shadow-2xs"
+                    : "text-ink-secondary hover:text-ink-primary"
+                }`}
+              >
+                Tamil Nadu ({TAMIL_NADU_DISTRICTS.length})
+              </button>
+              <button
+                onClick={() => setZoneView("city")}
+                className={`text-[11px] font-bold px-2.5 py-1 rounded-[6px] transition-all cursor-pointer ${
+                  zoneView === "city"
+                    ? "bg-burgundy-700 text-white shadow-2xs"
+                    : "text-ink-secondary hover:text-ink-primary"
+                }`}
+              >
+                Chennai Urban Zones ({CHENNAI_ZONES.length})
+              </button>
+            </div>
+          )}
+
           {(["all", "good", "moderate", "gap"] as const).map((lvl) => (
             <button
               key={lvl}
@@ -82,7 +161,7 @@ export function MaharashtraRealTimeMap({ onSelectDistrict, selectedId }: MapProp
                   : "bg-white border-[rgba(124,45,45,0.12)] text-ink-secondary hover:bg-blush"
               }`}
             >
-              {lvl === "all" ? "All Districts (13)" : lvl === "good" ? "● Good (75%+)" : lvl === "moderate" ? "● Moderate (50-74%)" : "● High Gap (<50%)"}
+              {lvl === "all" ? `All (${activeDistrictList.length})` : lvl === "good" ? "● Good (75%+)" : lvl === "moderate" ? "● Moderate (50-74%)" : "● High Gap (<50%)"}
             </button>
           ))}
         </div>
@@ -104,7 +183,7 @@ export function MaharashtraRealTimeMap({ onSelectDistrict, selectedId }: MapProp
       <div className="relative bg-[#E8E2D9] rounded-[12px] overflow-hidden border border-[rgba(124,45,45,0.12)] h-[440px] shadow-2xs">
         {/* Real OpenStreetMap Live Iframe Embed */}
         <iframe
-          title="Maharashtra Healthcare Surveillance Map"
+          title={`${state} Healthcare Surveillance Map`}
           src={mapIframeSrc}
           className="w-full h-full border-0"
           loading="lazy"
@@ -114,13 +193,13 @@ export function MaharashtraRealTimeMap({ onSelectDistrict, selectedId }: MapProp
         <div className="absolute top-2.5 inset-x-2.5 z-10 bg-white/95 backdrop-blur-md border border-[rgba(124,45,45,0.12)] rounded-[8px] px-3 py-2 flex items-center justify-between shadow-sm text-[11.5px]">
           <div className="flex items-center gap-2 font-bold text-ink-primary truncate">
             <Navigation className="w-3.5 h-3.5 text-burgundy-700 flex-shrink-0" />
-            <span>State Surveillance Focus: {activeDistrict.name}</span>
+            <span>Surveillance Focus: {activeDistrict.name}</span>
             <span className={`text-[10px] font-bold px-2 py-0.2 rounded border ${ACCESS_CONFIG[activeDistrict.access].badge}`}>
               {activeDistrict.score}% Accessibility
             </span>
           </div>
           <a
-            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeDistrict.name + ", Maharashtra")}`}
+            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeDistrict.name + ", " + state)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-[11px] font-bold text-burgundy-700 hover:underline flex items-center gap-1 flex-shrink-0"
@@ -136,8 +215,8 @@ export function MaharashtraRealTimeMap({ onSelectDistrict, selectedId }: MapProp
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-[14px] text-ink-primary">{activeDistrict.name} District</h4>
-                  <span className="text-[10px] font-semibold text-ink-tertiary">({activeDistrict.division} Div)</span>
+                  <h4 className="font-bold text-[14px] text-ink-primary">{activeDistrict.name}</h4>
+                  <span className="text-[10px] font-semibold text-ink-tertiary">({activeDistrict.division})</span>
                 </div>
                 <div className="text-[11.5px] text-ink-secondary mt-0.5">
                   Facilities: <strong>{activeDistrict.facilitiesCount} Monitored</strong> · Specialists: <strong>{activeDistrict.specialists}</strong> · Medicines: <strong>{activeDistrict.medicines}</strong>

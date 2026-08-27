@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { MaharashtraRealTimeMap, MAHARASHTRA_DISTRICTS, DistrictMetric } from "@/components/shared/MaharashtraRealTimeMap";
+import { MaharashtraRealTimeMap, TAMIL_NADU_DISTRICTS, MAHARASHTRA_DISTRICTS, DistrictMetric } from "@/components/shared/MaharashtraRealTimeMap";
+import { useLocationContext } from "@/lib/context/LocationContext";
 
 const ACCESS_LABEL: Record<string, string> = { good: "Good access", moderate: "Moderate gap", gap: "High gap" };
 const ACCESS_STYLE: Record<string, string> = {
@@ -12,6 +13,11 @@ const ACCESS_STYLE: Record<string, string> = {
 };
 
 export default function MapPage() {
+  const { governmentLocation } = useLocationContext();
+  const state = governmentLocation?.state || "Tamil Nadu";
+  const isTamilNadu = state.toLowerCase().includes("tamil") || state.toLowerCase().includes("chennai");
+  const districtLedger = isTamilNadu ? TAMIL_NADU_DISTRICTS : MAHARASHTRA_DISTRICTS;
+
   const [selectedDistrict, setSelectedDistrict] = useState<DistrictMetric | null>(null);
 
   return (
@@ -19,10 +25,10 @@ export default function MapPage() {
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-widest text-burgundy-700 mb-1">Statewide Spatial Surveillance</p>
         <h1 className="text-[24px] font-extrabold text-ink-primary tracking-tight">
-          Maharashtra Healthcare Accessibility Map
+          {state} Healthcare Accessibility Map
         </h1>
         <p className="text-[12.5px] text-ink-secondary mt-1">
-          Interactive real-time OpenStreetMap with district-level specialist density, diagnostics availability, and facility capacity
+          Interactive real-time OpenStreetMap with district-level specialist density, diagnostics availability, and facility capacity across {state}
         </p>
       </div>
 
@@ -34,16 +40,18 @@ export default function MapPage() {
       {/* District breakdown table */}
       <div className="bg-white border border-[rgba(124,45,45,0.08)] rounded-[14px] overflow-hidden shadow-2xs">
         <div className="p-4 border-b border-[rgba(124,45,45,0.06)] bg-bg">
-          <h2 className="text-[14px] font-bold text-ink-primary">District Health Indices Ledger (13 Key Districts Tracked)</h2>
+          <h2 className="text-[14px] font-bold text-ink-primary">
+            District Health Indices Ledger ({districtLedger.length} Key Districts &amp; Zones Tracked)
+          </h2>
         </div>
 
         <div className="divide-y divide-[rgba(124,45,45,0.06)]">
-          {MAHARASHTRA_DISTRICTS.map((d) => (
+          {districtLedger.map((d) => (
             <div key={d.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 hover:bg-bg/50 transition-colors">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <span className="text-[14.5px] font-bold text-ink-primary">{d.name}</span>
-                  <span className="text-[11px] text-ink-tertiary">({d.division} Division)</span>
+                  <span className="text-[11px] text-ink-tertiary">({d.division})</span>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${ACCESS_STYLE[d.access]}`}>
                     {ACCESS_LABEL[d.access]}
                   </span>

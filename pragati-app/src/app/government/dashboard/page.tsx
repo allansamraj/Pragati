@@ -15,7 +15,14 @@ const KPIS = [
   { label: "Underserved Areas",     value: "64",    trend: "up" },
 ];
 
-const INSIGHTS: { level: "high" | "medium" | "watch"; district: string; issue: string; action: string }[] = [
+const TN_INSIGHTS: { level: "high" | "medium" | "watch"; district: string; issue: string; action: string }[] = [
+  { level: "high",   district: "Dharmapuri",   issue: "Cardiology specialist availability below threshold. Coverage at 42%.", action: "Expand specialist availability or teleconsultation capacity with GGH Chennai." },
+  { level: "medium", district: "The Nilgiris",  issue: "Diagnostic equipment downtime detected in hilly terrain. CT scan and X-Ray limited.", action: "Deploy mobile medical units and solar-backed diagnostic hubs." },
+  { level: "watch",  district: "Chengalpattu",  issue: "Suburban OPD workload surge in Tambaram & Kelambakkam. Facility at 88% capacity.", action: "Monitor facility workload, expand evening daycare counters." },
+  { level: "medium", district: "Villupuram",    issue: "Medicine shortage reported: Metformin, Insulin at critical buffer levels.", action: "Priority emergency dispatch from TNMSC central warehouse." },
+];
+
+const MH_INSIGHTS: { level: "high" | "medium" | "watch"; district: string; issue: string; action: string }[] = [
   { level: "high",   district: "Nandurbar",   issue: "Cardiology specialist availability below threshold. Coverage at 42%.", action: "Expand specialist availability or teleconsultation capacity." },
   { level: "medium", district: "Gadchiroli",  issue: "Diagnostic availability gap detected. CT scan and X-Ray limited.", action: "Review diagnostic equipment supply and technician availability." },
   { level: "watch",  district: "Palghar",     issue: "OPD workload increasing month-on-month. Facility at 88% capacity.", action: "Monitor facility workload, consider temporary capacity expansion." },
@@ -38,6 +45,10 @@ const WORKLOAD = [
 
 export default function GovernmentDashboard() {
   const { governmentLocation } = useLocationContext();
+  const state = governmentLocation?.state || "Tamil Nadu";
+  const isTamilNadu = state.toLowerCase().includes("tamil") || state.toLowerCase().includes("chennai");
+  const insights = isTamilNadu ? TN_INSIGHTS : MH_INSIGHTS;
+
   const [selectedDistrict, setSelectedDistrict] = useState<DistrictMetric | null>(null);
 
   return (
@@ -46,10 +57,10 @@ export default function GovernmentDashboard() {
       <div className="flex items-start justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-widest text-burgundy-700 mb-1">
-            Government Command Dashboard · {governmentLocation.state} Health Command
+            Government Command Dashboard · {state} Health Command
           </p>
           <h1 className="text-[26px] font-extrabold text-ink-primary tracking-tight">
-            {governmentLocation.state} Healthcare Intelligence · {governmentLocation.district}
+            {state} Healthcare Intelligence · {governmentLocation.district}
           </h1>
           <p className="text-[13px] text-ink-secondary mt-1">
             Administrative surveillance, facility capacity, and public health telemetry across {governmentLocation.district}.
@@ -92,8 +103,8 @@ export default function GovernmentDashboard() {
         >
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-[15.5px] font-bold text-ink-primary">Healthcare Accessibility — Maharashtra</h2>
-              <p className="text-[12px] text-ink-secondary mt-0.5">Real-time geographic surveillance map with district telemetry</p>
+              <h2 className="text-[15.5px] font-bold text-ink-primary">Healthcare Accessibility — {state}</h2>
+              <p className="text-[12px] text-ink-secondary mt-0.5">Real-time geographic surveillance map with district &amp; zonal telemetry</p>
             </div>
             <Link href="/government/map" className="text-[12px] font-bold text-burgundy-700 hover:underline flex items-center gap-1">
               Full Map View <ChevronRight className="w-3.5 h-3.5" />
@@ -116,7 +127,7 @@ export default function GovernmentDashboard() {
           </div>
 
           <div className="space-y-3">
-            {INSIGHTS.map((ins) => {
+            {insights.map((ins) => {
               const cfg = INSIGHT_CFG[ins.level];
               return (
                 <div key={ins.district} className={`p-3 rounded-[8px] border-l-4 ${cfg.cls}`}>

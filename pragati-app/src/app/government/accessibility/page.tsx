@@ -2,13 +2,17 @@
 
 import React from "react";
 import { Activity, ShieldCheck, TrendingUp, Users, MapPin } from "lucide-react";
+import { useLocationContext } from "@/lib/context/LocationContext";
 
 export default function GovernmentAccessibilityPage() {
+  const { governmentLocation } = useLocationContext();
+  const state = governmentLocation?.state || "Tamil Nadu";
+
   const metrics = [
     { title: "Average Travel Time to Secondary Care", val: "48 mins", note: "-12 mins from 2025 baseline", positive: true },
     { title: "Rural Population within 30m of PHC", val: "86.4%", note: "+4.2% statewide improvement", positive: true },
     { title: "Specialist Teleconsultation Reach", val: "94.2%", note: "Covering 346 rural PHC spokes", positive: true },
-    { title: "Unmet Healthcare Requests Rate", val: "4.8%", note: "Lowest in western division", positive: true },
+    { title: "Unmet Healthcare Requests Rate", val: "4.8%", note: "Lowest in northern division", positive: true },
   ];
 
   return (
@@ -16,7 +20,7 @@ export default function GovernmentAccessibilityPage() {
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-widest text-burgundy-700 mb-1">Public Health Surveillance</p>
         <h1 className="text-[24px] font-extrabold text-ink-primary tracking-tight">Healthcare Accessibility Indices</h1>
-        <p className="text-[12.5px] text-ink-secondary mt-1">Geographic equity, travel time thresholds, and specialty coverage across Maharashtra</p>
+        <p className="text-[12.5px] text-ink-secondary mt-1">Geographic equity, travel time thresholds, and specialty coverage across {state}</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

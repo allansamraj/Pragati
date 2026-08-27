@@ -5,7 +5,11 @@ import Link from "next/link";
 import { Building2, Search, Filter, ShieldCheck, Activity, Users, Bed, ChevronRight } from "lucide-react";
 import { DEMO_FACILITIES, Facility } from "@/data/facilities";
 
+import { useLocationContext } from "@/lib/context/LocationContext";
+
 export default function GovernmentFacilitiesPage() {
+  const { governmentLocation } = useLocationContext();
+  const state = governmentLocation?.state || "Tamil Nadu";
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
 
@@ -20,7 +24,7 @@ export default function GovernmentFacilitiesPage() {
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-widest text-burgundy-700 mb-1">Statewide Infrastructure</p>
         <h1 className="text-[24px] font-extrabold text-ink-primary tracking-tight">Public Healthcare Facilities</h1>
-        <p className="text-[12.5px] text-ink-secondary mt-1">Live monitoring across 36 Maharashtra districts — 1,284 facilities tracked</p>
+        <p className="text-[12.5px] text-ink-secondary mt-1">Live monitoring across {state} health network — {DEMO_FACILITIES.length} regional hubs &amp; clinics tracked</p>
       </div>
 
       {/* Filters */}
