@@ -16,7 +16,7 @@ export default function DoctorConsultationPage() {
   ]);
 
   const [notes, setNotes] = useState(
-    "Patient Arjun Deshmukh (Nandurbar) presenting with mild chest discomfort on exertion. ECG shows normal sinus rhythm. Advised low sodium diet, regular walking, and 30-day medication compliance."
+    "Patient Arjun Deshmukh (Chennai) presenting with mild chest discomfort on exertion. ECG shows normal sinus rhythm. Advised low sodium diet, regular walking, and 30-day medication compliance."
   );
 
   const addMed = () => {
@@ -48,7 +48,7 @@ export default function DoctorConsultationPage() {
               </span>
             </div>
             <div className="text-[11.5px] text-ink-tertiary">
-              54y · Male · ABHA ID: 77-8923-4512-6734 · Nandurbar, Maharashtra
+              54y · Male · ABHA ID: 77-8923-4512-6734 · Chennai, Tamil Nadu
             </div>
           </div>
         </div>

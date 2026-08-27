@@ -7,8 +7,10 @@ import {
   Pill, FlaskConical, AlertTriangle, CheckCircle2, RefreshCw,
   ArrowRight, Package, Truck, Activity, Building2, Plus
 } from "lucide-react";
+import { useLocationContext } from "@/lib/context/LocationContext";
 
 export default function ProviderDashboard() {
+  const { providerLocation } = useLocationContext();
   const [resupplied, setResupplied] = useState(false);
 
   const handleResupply = () => {
@@ -25,13 +27,13 @@ export default function ProviderDashboard() {
             <span className="text-[10px] font-bold uppercase tracking-widest text-burgundy-700 bg-blush border border-burgundy-200 rounded px-2 py-0.5">
               Hospital Pharmacy &amp; Supplies Command
             </span>
-            <span className="text-[12px] text-ink-tertiary">Facility ID: fac-001</span>
+            <span className="text-[12px] text-ink-tertiary">Registered Facility · {providerLocation.district}</span>
           </div>
           <h1 className="text-[24px] font-extrabold text-ink-primary tracking-tight">
-            Nandurbar District Civil Hospital — Pharmacy &amp; Resources
+            {providerLocation.facilityName}
           </h1>
           <p className="text-[13px] text-ink-secondary mt-0.5">
-            Central Medicine Stores · Diagnostic Lab Status · Medical Consumables
+            Central Medicine Stores · Diagnostic Lab Status · Service Coverage: {providerLocation.serviceRadiusKm} km
           </p>
         </div>
 

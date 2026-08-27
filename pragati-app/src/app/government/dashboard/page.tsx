@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { RefreshCw, ChevronRight, AlertTriangle, TrendingDown, Eye, Activity, ShieldCheck, Building2, Users } from "lucide-react";
 import { MaharashtraRealTimeMap, DistrictMetric } from "@/components/shared/MaharashtraRealTimeMap";
+import { useLocationContext } from "@/lib/context/LocationContext";
 
 const KPIS = [
   { label: "Facilities Monitored",  value: "1,284", trend: null },
@@ -36,6 +37,7 @@ const WORKLOAD = [
 ];
 
 export default function GovernmentDashboard() {
+  const { governmentLocation } = useLocationContext();
   const [selectedDistrict, setSelectedDistrict] = useState<DistrictMetric | null>(null);
 
   return (
@@ -44,13 +46,13 @@ export default function GovernmentDashboard() {
       <div className="flex items-start justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-widest text-burgundy-700 mb-1">
-            Government Command Dashboard
+            Government Command Dashboard · {governmentLocation.state} Health Command
           </p>
           <h1 className="text-[26px] font-extrabold text-ink-primary tracking-tight">
-            Maharashtra Healthcare Intelligence
+            {governmentLocation.state} Healthcare Intelligence · {governmentLocation.district}
           </h1>
           <p className="text-[13px] text-ink-secondary mt-1">
-            Public healthcare accessibility, capacity &amp; resource surveillance — Live OpenStreetMap Telemetry
+            Administrative surveillance, facility capacity, and public health telemetry across {governmentLocation.district}.
           </p>
         </div>
         <div className="flex items-center gap-2 text-[12px] text-ink-tertiary bg-white border border-[rgba(124,45,45,0.08)] rounded-[8px] px-3 py-1.5 shadow-2xs">

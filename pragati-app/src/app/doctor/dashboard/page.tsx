@@ -8,8 +8,10 @@ import {
   Clock, ArrowRight, Stethoscope, AlertTriangle, Sparkles,
   PhoneCall, Heart, User, ChevronRight
 } from "lucide-react";
+import { useLocationContext } from "@/lib/context/LocationContext";
 
 export default function DoctorDashboard() {
+  const { doctorLocation } = useLocationContext();
   const [currentServing, setCurrentServing] = useState(41);
   const [calledNext, setCalledNext] = useState(false);
 
@@ -26,15 +28,15 @@ export default function DoctorDashboard() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
-              OPD Active · Room 204
+              OPD Active · {doctorLocation.room}
             </span>
             <span className="text-[12px] text-ink-tertiary">Morning Shift: 09:00 AM – 02:00 PM</span>
           </div>
           <h1 className="text-[24px] font-extrabold text-ink-primary tracking-tight">
-            Welcome, Dr. Ananya Rao
+            Welcome, {doctorLocation.doctorName}
           </h1>
           <p className="text-[13px] text-ink-secondary mt-0.5">
-            Senior Interventional Cardiologist · Nandurbar District Civil Hospital, Maharashtra
+            Senior Interventional Cardiologist · {doctorLocation.facilityName}, {doctorLocation.state}
           </p>
         </div>
 
@@ -44,7 +46,7 @@ export default function DoctorDashboard() {
             className="flex items-center gap-2 px-4 py-2.5 bg-burgundy-700 hover:bg-burgundy-800 text-white rounded-[10px] text-[13px] font-bold transition-all shadow-xs"
           >
             <Video className="w-4 h-4" />
-            <span>Join Dhadgaon Rural Teleconsult</span>
+            <span>Join Peripheral Teleconsult Hub</span>
             <span className="w-2 h-2 rounded-full bg-rose-300 animate-ping" />
           </Link>
         </div>
@@ -54,9 +56,9 @@ export default function DoctorDashboard() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: "Today's OPD Queue", value: "24 Patients", sub: "6 Waiting · 18 Completed", color: "text-ink-primary" },
-          { label: "Now In Consultation", value: `Token #${currentServing}`, sub: "Arjun Deshmukh (54y, Nandurbar)", color: "text-emerald-600" },
+          { label: "Now In Consultation", value: `Token #${currentServing}`, sub: "Arjun Deshmukh (54y, Chennai)", color: "text-emerald-600" },
           { label: "Avg Consult Time", value: "11 mins", sub: "Within standard 15m", color: "text-ink-primary" },
-          { label: "Teleconsult Requests", value: "2 Pending", sub: "Dhadgaon & Navapur PHC Hubs", color: "text-burgundy-700" },
+          { label: "Teleconsult Requests", value: "2 Pending", sub: "Triplicane & Suburban UPHC Hubs", color: "text-burgundy-700" },
         ].map((stat) => (
           <div key={stat.label} className="bg-white border border-[rgba(124,45,45,0.08)] rounded-[12px] p-4 shadow-2xs">
             <div className="text-[11px] font-bold text-ink-tertiary uppercase tracking-wider">{stat.label}</div>
@@ -82,7 +84,7 @@ export default function DoctorDashboard() {
                     Token #{currentServing}
                   </span>
                 </div>
-                <div className="text-[12px] text-ink-tertiary">54y · Male · ABHA: 77-8923-4512-6734 · Nandurbar</div>
+                <div className="text-[12px] text-ink-tertiary">54y · Male · ABHA: 77-8923-4512-6734 · Chennai, Tamil Nadu</div>
               </div>
             </div>
 
@@ -117,7 +119,7 @@ export default function DoctorDashboard() {
               Chief Complaints &amp; Clinical Findings
             </label>
             <textarea
-              defaultValue="Patient from Nandurbar reports mild exertional chest discomfort for past 3 days. 12-Lead ECG shows normal sinus rhythm. Advised Metoprolol 50mg, Aspirin 75mg, and 30-day follow-up."
+              defaultValue="Patient from Chennai reports mild exertional chest discomfort for past 3 days. 12-Lead ECG shows normal sinus rhythm. Advised Metoprolol 50mg, Aspirin 75mg, and 30-day follow-up."
               rows={3}
               className="w-full p-3 bg-bg border border-[rgba(124,45,45,0.12)] rounded-[10px] text-[13px] text-ink-primary focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
             />
@@ -145,7 +147,7 @@ export default function DoctorDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-[15px] font-bold text-ink-primary">Live OPD Queue</h3>
-              <p className="text-[11.5px] text-ink-tertiary">Cardiology Department · Nandurbar Hospital</p>
+              <p className="text-[11.5px] text-ink-tertiary">Cardiology Department · {doctorLocation.facilityName}</p>
             </div>
             <Link href="/doctor/queue" className="text-[12px] font-bold text-emerald-700 hover:underline flex items-center gap-1">
               View All <ChevronRight className="w-3.5 h-3.5" />
@@ -154,14 +156,17 @@ export default function DoctorDashboard() {
 
           <div className="space-y-2.5">
             {[
-              { token: 42, name: "Sunita Kulkarni", age: "48y", status: "Next in line", priority: "Urgent", wait: "Est. 5 min", loc: "Navapur" },
-              { token: 43, name: "Ganesh Patil", age: "62y", status: "Waiting", priority: "Routine", wait: "Est. 15 min", loc: "Shahada" },
-              { token: 44, name: "Anjali Shinde", age: "39y", status: "Waiting", priority: "Routine", wait: "Est. 25 min", loc: "Dhadgaon" },
-              { token: 45, name: "Ramesh Gaikwad", age: "55y", status: "Waiting", priority: "Urgent", wait: "Est. 35 min", loc: "Akkalkuwa" },
+              { token: 42, name: "Sunita Kulkarni", age: "48y", status: "Next in line", priority: "Urgent", wait: "Est. 5 min", loc: "Triplicane" },
+              { token: 43, name: "Ganesh Patil", age: "62y", status: "Waiting", priority: "Routine", wait: "Est. 15 min", loc: "Royapettah" },
+              { token: 44, name: "Anjali Shinde", age: "39y", status: "Waiting", priority: "Routine", wait: "Est. 25 min", loc: "Park Town" },
+              { token: 45, name: "Ramesh Gaikwad", age: "55y", status: "Waiting", priority: "Urgent", wait: "Est. 35 min", loc: "Teynampet" },
             ].map((p) => (
-              <div key={p.token} className="flex items-center justify-between p-3 rounded-[10px] bg-bg border border-[rgba(124,45,45,0.07)] hover:border-emerald-500/40 transition-all">
+              <div
+                key={p.token}
+                className="flex items-center justify-between p-3 rounded-[10px] bg-bg border border-[rgba(124,45,45,0.06)] hover:border-emerald-300 transition-all"
+              >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-[7px] bg-white border border-[rgba(124,45,45,0.1)] flex items-center justify-center font-bold text-[12px] font-mono text-ink-primary">
+                  <div className="w-8 h-8 rounded-[8px] bg-white border border-[rgba(124,45,45,0.12)] font-mono font-bold text-[13px] flex items-center justify-center text-ink-primary">
                     #{p.token}
                   </div>
                   <div>
@@ -169,11 +174,16 @@ export default function DoctorDashboard() {
                     <div className="text-[11px] text-ink-tertiary">{p.age} · {p.loc} · {p.priority}</div>
                   </div>
                 </div>
+
                 <div className="text-right">
-                  <span className="text-[10.5px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                    p.status === "Next in line"
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                      : "bg-white text-ink-secondary border border-[rgba(124,45,45,0.1)]"
+                  }`}>
                     {p.status}
                   </span>
-                  <div className="text-[10px] text-ink-tertiary mt-1">{p.wait}</div>
+                  <div className="text-[10px] text-ink-tertiary mt-0.5">{p.wait}</div>
                 </div>
               </div>
             ))}

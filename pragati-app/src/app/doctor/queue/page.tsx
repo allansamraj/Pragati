@@ -3,18 +3,20 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { Users, PhoneCall, CheckCircle2, Clock, Filter, ArrowRight, User } from "lucide-react";
+import { useLocationContext } from "@/lib/context/LocationContext";
 
 export default function DoctorQueuePage() {
+  const { doctorLocation } = useLocationContext();
   const [servingToken, setServingToken] = useState(41);
   const [filter, setFilter] = useState<"all" | "urgent" | "waiting">("all");
 
   const [patients, setPatients] = useState([
-    { token: 41, name: "Arjun Deshmukh", age: "54y", gender: "M", complaint: "Chest discomfort, hypertension (Nandurbar)", priority: "urgent", status: "in-consultation", wait: "Now" },
-    { token: 42, name: "Sunita Kulkarni", age: "48y", gender: "F", complaint: "Palpitations, post-ECG review (Navapur)", priority: "urgent", status: "waiting", wait: "5 min" },
-    { token: 43, name: "Ganesh Patil", age: "62y", gender: "M", complaint: "Routine cardiac medication review (Shahada)", priority: "routine", status: "waiting", wait: "15 min" },
-    { token: 44, name: "Anjali Shinde", age: "39y", gender: "F", complaint: "Mild dyspnea on exertion (Dhadgaon)", priority: "routine", status: "waiting", wait: "25 min" },
-    { token: 45, name: "Ramesh Gaikwad", age: "55y", gender: "M", complaint: "Follow-up after angiography (Akkalkuwa)", priority: "urgent", status: "waiting", wait: "35 min" },
-    { token: 46, name: "Pooja Chavan", age: "51y", gender: "F", complaint: "Chest tightness, diabetic check (Taloda)", priority: "urgent", status: "waiting", wait: "45 min" },
+    { token: 41, name: "Arjun Deshmukh", age: "54y", gender: "M", complaint: "Chest discomfort, hypertension (Triplicane)", priority: "urgent", status: "in-consultation", wait: "Now" },
+    { token: 42, name: "Sunita Kulkarni", age: "48y", gender: "F", complaint: "Palpitations, post-ECG review (Royapettah)", priority: "urgent", status: "waiting", wait: "5 min" },
+    { token: 43, name: "Ganesh Patil", age: "62y", gender: "M", complaint: "Routine cardiac medication review (Park Town)", priority: "routine", status: "waiting", wait: "15 min" },
+    { token: 44, name: "Anjali Shinde", age: "39y", gender: "F", complaint: "Mild dyspnea on exertion (Teynampet)", priority: "routine", status: "waiting", wait: "25 min" },
+    { token: 45, name: "Ramesh Gaikwad", age: "55y", gender: "M", complaint: "Follow-up after angiography (Adyar)", priority: "urgent", status: "waiting", wait: "35 min" },
+    { token: 46, name: "Pooja Chavan", age: "51y", gender: "F", complaint: "Chest tightness, diabetic check (Anna Nagar)", priority: "urgent", status: "waiting", wait: "45 min" },
   ]);
 
   const callNext = () => {
@@ -36,7 +38,7 @@ export default function DoctorQueuePage() {
     <div className="space-y-5 max-w-[1100px]">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-[rgba(124,45,45,0.09)] rounded-[12px] p-5 shadow-2xs">
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-widest text-emerald-700">Nandurbar District Civil Hospital · OPD Queue</div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-emerald-700">{doctorLocation.facilityName} · OPD Queue</div>
           <h1 className="text-[22px] font-bold text-ink-primary mt-0.5">Cardiology OPD Waiting List</h1>
           <p className="text-[12px] text-ink-tertiary">Currently Serving Token #{servingToken} · Room 204</p>
         </div>

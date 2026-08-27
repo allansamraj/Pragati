@@ -30,8 +30,8 @@ const INITIAL_PRESCRIPTIONS: DoctorRx[] = [
     date: "Today, 10:14 AM",
     diagnosis: "Class I Exertional Angina, Controlled Essential Hypertension",
     doctor: "Dr. Ananya Rao, MD, DM (Cardiology)",
-    regNo: "MMC-2014-08-3921",
-    facility: "Nandurbar District Civil Hospital",
+    regNo: "TMC-2014-08-3921",
+    facility: "Government General Hospital, Chennai",
     status: "Transmitted to Pharmacy",
     meds: [
       { name: "Tab. Metoprolol Succinate ER 50mg", dose: "50mg", freq: "1 - 0 - 0 (Morning)", duration: "30 Days", instructions: "Take after breakfast with water" },

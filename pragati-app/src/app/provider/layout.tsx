@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { sessionService } from "@/lib/auth/sessionService";
 import { ProfileDropdown } from "@/components/shared/ProfileDropdown";
 import { RoleLocationHeader } from "@/components/layout/RoleLocationHeader";
+import { useLocationContext } from "@/lib/context/LocationContext";
 import {
   LayoutDashboard, Pill, FlaskConical, Package,
   Share2, BarChart2, Settings, ChevronLeft,
@@ -26,6 +27,7 @@ const NAV = [
 export default function ProviderLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { providerLocation } = useLocationContext();
   const [loaded, setLoaded] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -48,21 +50,21 @@ export default function ProviderLayout({ children }: { children: React.ReactNode
 
   return (
     <div className="min-h-screen bg-bg flex">
-      {/* Sidebar */}
+      {/* Provider Warm Editorial Sidebar */}
       <aside
         style={{ width: collapsed ? 64 : 240 }}
-        className="fixed top-0 left-0 h-screen bg-surface border-r border-[rgba(124,45,45,0.09)] z-30 flex flex-col transition-all duration-200"
-        aria-label="Pharmacy and Provider navigation"
+        className="fixed top-0 left-0 h-screen bg-surface border-r border-[rgba(124,45,45,0.08)] z-30 flex flex-col transition-all duration-200"
+        aria-label="Provider navigation"
       >
         <div className={cn("h-14 border-b border-[rgba(124,45,45,0.08)] flex items-center flex-shrink-0 px-4", collapsed && "justify-center")}>
           {!collapsed && (
             <div className="flex items-center gap-2.5 flex-1 min-w-0">
-              <div className="w-7 h-7 bg-burgundy-700 rounded-[6px] flex items-center justify-center flex-shrink-0 shadow-xs">
-                <Pill className="w-4 h-4 text-white" />
+              <div className="w-7 h-7 bg-burgundy-700 rounded-[6px] flex items-center justify-center flex-shrink-0 border border-burgundy-600 shadow-xs">
+                <Building2 className="w-4 h-4 text-white" />
               </div>
               <div>
                 <span className="text-[13px] font-extrabold text-ink-primary tracking-tight leading-none block">PRAGATI</span>
-                <span className="text-[9px] font-bold text-burgundy-700 tracking-wider uppercase leading-none block mt-0.5">PHARMACY &amp; FACILITY</span>
+                <span className="text-[9px] font-bold text-burgundy-700 tracking-wider uppercase leading-none block mt-0.5">PHARMACY / PROVIDER</span>
               </div>
             </div>
           )}
@@ -77,8 +79,8 @@ export default function ProviderLayout({ children }: { children: React.ReactNode
 
         {!collapsed && (
           <div className="mx-3 mt-3 mb-1 px-3 py-2.5 bg-blush/60 border border-[rgba(124,45,45,0.12)] rounded-[10px]">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-burgundy-700 mb-0.5">Nandurbar District Civil Hospital</div>
-            <div className="text-[12px] font-bold text-ink-primary">Central Pharmacy &amp; Labs</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-burgundy-700 mb-0.5 truncate">{providerLocation.facilityName}</div>
+            <div className="text-[12px] font-bold text-ink-primary truncate">{providerLocation.department}</div>
             <div className="text-[9.5px] text-available-600 font-bold mt-1 uppercase tracking-widest flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-available-500 animate-pulse" /> Live Stock Monitoring
             </div>

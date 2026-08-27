@@ -7,25 +7,28 @@ import { cn } from "@/lib/utils";
 import { sessionService } from "@/lib/auth/sessionService";
 import { ProfileDropdown } from "@/components/shared/ProfileDropdown";
 import { RoleLocationHeader } from "@/components/layout/RoleLocationHeader";
+import { useLocationContext } from "@/lib/context/LocationContext";
 import {
   LayoutDashboard, Users, Activity, Video, FileText,
   Clock, Share2, Settings, ChevronLeft, ChevronRight,
-  Stethoscope, Bell
+  Stethoscope, Building2
 } from "lucide-react";
 
 const NAV = [
-  { href: "/doctor/dashboard",    icon: LayoutDashboard, label: "Overview" },
-  { href: "/doctor/queue",        icon: Users,           label: "Live OPD Queue" },
-  { href: "/doctor/consultation", icon: Stethoscope,     label: "Consultation Pad" },
-  { href: "/doctor/teleconsult",  icon: Video,           label: "Teleconsultation" },
-  { href: "/doctor/patients",     icon: Activity,        label: "Patient Records" },
-  { href: "/doctor/prescriptions",icon: FileText,        label: "E-Prescriptions" },
-  { href: "/doctor/availability", icon: Clock,           label: "Duty & Schedule" },
+  { href: "/doctor/dashboard",     icon: LayoutDashboard, label: "OPD Overview" },
+  { href: "/doctor/queue",         icon: Users,           label: "Live OPD Queue" },
+  { href: "/doctor/consultation",  icon: Stethoscope,     label: "Consultation Pad" },
+  { href: "/doctor/teleconsult",   icon: Video,           label: "Teleconsultation" },
+  { href: "/doctor/patients",      icon: FileText,        label: "Patient Records" },
+  { href: "/doctor/prescriptions", icon: Activity,        label: "E-Prescriptions" },
+  { href: "/doctor/schedule",      icon: Clock,           label: "Duty & Schedule" },
+  { href: "/doctor/settings",      icon: Settings,        label: "Doctor Settings" },
 ];
 
 export default function DoctorLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { doctorLocation } = useLocationContext();
   const [loaded, setLoaded] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -77,8 +80,8 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
 
         {!collapsed && (
           <div className="mx-3 mt-3 mb-1 px-3 py-2.5 bg-white/5 border border-white/10 rounded-[10px]">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Nandurbar District Civil Hospital</div>
-            <div className="text-[12px] font-bold text-white">Dr. Ananya Rao</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5 truncate">{doctorLocation.facilityName}</div>
+            <div className="text-[12px] font-bold text-white">{doctorLocation.doctorName}</div>
             <div className="text-[9.5px] text-emerald-300 font-bold mt-1 uppercase tracking-widest flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> On Duty · OPD Active
             </div>

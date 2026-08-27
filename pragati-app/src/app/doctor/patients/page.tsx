@@ -5,12 +5,12 @@ import Link from "next/link";
 import { Search, User, FileText, ShieldCheck, Activity, ChevronRight } from "lucide-react";
 
 const PATIENTS = [
-  { id: "P-101", name: "Arjun Deshmukh", age: "54y", gender: "Male", abha: "77-8923-4512-6734", loc: "Nandurbar", condition: "Hypertension, Exertional Angina", lastVisit: "Today (OPD)", status: "Active" },
-  { id: "P-102", name: "Sunita Kulkarni", age: "48y", gender: "Female", abha: "82-1144-9021-3312", loc: "Navapur", condition: "Sinus Tachycardia", lastVisit: "12 Aug 2026", status: "Follow-up" },
-  { id: "P-103", name: "Ganesh Patil", age: "62y", gender: "Male", abha: "45-7782-3901-8842", loc: "Shahada", condition: "Post-CABG Follow-up, Type 2 Diabetes", lastVisit: "28 Jul 2026", status: "Stable" },
-  { id: "P-104", name: "Anjali Shinde", age: "39y", gender: "Female", abha: "61-2291-5510-4491", loc: "Dhadgaon", condition: "Mitral Valve Prolapse (Mild)", lastVisit: "15 Jun 2026", status: "Stable" },
-  { id: "P-105", name: "Ramesh Gaikwad", age: "55y", gender: "Male", abha: "91-4402-1188-7721", loc: "Akkalkuwa", condition: "Ischemic Heart Disease", lastVisit: "02 Aug 2026", status: "Medication Review" },
-  { id: "P-106", name: "Pooja Chavan", age: "51y", gender: "Female", abha: "33-6621-9988-1122", loc: "Taloda", condition: "Cardiac Arrhythmia", lastVisit: "19 Jul 2026", status: "Stable" },
+  { id: "P-101", name: "Arjun Deshmukh", age: "54y", gender: "Male", abha: "77-8923-4512-6734", loc: "Triplicane, Chennai", condition: "Hypertension, Exertional Angina", lastVisit: "Today (OPD)", status: "Active" },
+  { id: "P-102", name: "Sunita Kulkarni", age: "48y", gender: "Female", abha: "82-1144-9021-3312", loc: "Royapettah, Chennai", condition: "Sinus Tachycardia", lastVisit: "12 Aug 2026", status: "Follow-up" },
+  { id: "P-103", name: "Ganesh Patil", age: "62y", gender: "Male", abha: "45-7782-3901-8842", loc: "Park Town, Chennai", condition: "Post-CABG Follow-up, Type 2 Diabetes", lastVisit: "28 Jul 2026", status: "Stable" },
+  { id: "P-104", name: "Anjali Shinde", age: "39y", gender: "Female", abha: "61-2291-5510-4491", loc: "Teynampet, Chennai", condition: "Mitral Valve Prolapse (Mild)", lastVisit: "15 Jun 2026", status: "Stable" },
+  { id: "P-105", name: "Ramesh Gaikwad", age: "55y", gender: "Male", abha: "91-4402-1188-7721", loc: "Adyar, Chennai", condition: "Ischemic Heart Disease", lastVisit: "02 Aug 2026", status: "Medication Review" },
+  { id: "P-106", name: "Pooja Chavan", age: "51y", gender: "Female", abha: "33-6621-9988-1122", loc: "Anna Nagar, Chennai", condition: "Cardiac Arrhythmia", lastVisit: "19 Jul 2026", status: "Stable" },
 ];
 
 export default function DoctorPatientsPage() {
@@ -27,8 +27,8 @@ export default function DoctorPatientsPage() {
     <div className="space-y-5 max-w-[1100px]">
       <div>
         <div className="text-[11px] font-bold uppercase tracking-widest text-emerald-700">Patient Electronic Health Records</div>
-        <h1 className="text-[22px] font-bold text-ink-primary mt-0.5">Maharashtra Patient Registry — Nandurbar</h1>
-        <p className="text-[13px] text-ink-secondary">Consent-backed access to ABHA longitudinal health records across Maharashtra.</p>
+        <h1 className="text-[22px] font-bold text-ink-primary mt-0.5">Regional Patient Registry · Outpatient Department</h1>
+        <p className="text-[13px] text-ink-secondary">Consent-backed access to ABHA longitudinal health records and clinical history.</p>
       </div>
 
       {/* Search */}

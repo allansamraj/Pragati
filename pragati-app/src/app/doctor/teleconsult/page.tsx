@@ -40,10 +40,10 @@ export default function DoctorTeleconsultPage() {
             </span>
           </div>
           <h1 className="text-[18px] font-bold text-ink-primary">
-            Dhadgaon Rural PHC Hub <span className="text-emerald-700 font-mono">⟷</span> Nandurbar District Hospital (Cardiology)
+            Triplicane UPHC Spoke <span className="text-emerald-700 font-mono">⟷</span> Government General Hospital, Chennai (Cardiology)
           </h1>
           <p className="text-[12px] text-ink-secondary mt-0.5">
-            Patient: <strong className="text-ink-primary">Arjun Deshmukh (54y, Male, Nandurbar)</strong> · Assisted by ASHA Worker Sunita Tai
+            Patient: <strong className="text-ink-primary">Arjun Deshmukh (54y, Male, Chennai)</strong> · Assisted by Community Health Worker
           </p>
         </div>
 
