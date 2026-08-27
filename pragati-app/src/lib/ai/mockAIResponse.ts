@@ -1,9 +1,10 @@
-// ─── PRAGATI ASSIST — DATA-GROUNDED INTELLIGENT ENGINE ──────────────────────
-// Architecture: User Query -> Intent Classification -> Tool Selection -> Fetch Verified Application Data -> Structured Response.
+// ─── PRAGATI ASSIST — DATA-GROUNDED & SYMPTOM-AWARE GUIDED ENGINE ───────────
+// Architecture: User Query -> Symptom Triage Check -> Intent Classification -> Tool Selection -> Fetch Verified Application Data -> Structured Response.
 // Grounded strictly in real application database / services. NEVER hallucinating.
 
 import { ChatMessage, UserRole, AssistantLanguage } from "./types";
 import { patientTools, doctorTools, providerTools, governmentTools } from "./assistantTools";
+import { symptomTriageEngine } from "./symptomTriageEngine";
 import { DEMO_PATIENT } from "@/data/patient";
 import { DEMO_FACILITIES } from "@/data/facilities";
 
@@ -28,20 +29,63 @@ export function generateAssistantResponse(
   }
 
   // Default: Patient Role
-  return handlePatientQuery(q, timestamp, msgId, language);
+  return handlePatientQuery(query, timestamp, msgId, language);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. PATIENT ASSISTANT ENGINE (DATA-GROUNDED)
+// 1. PATIENT ASSISTANT ENGINE (DATA-GROUNDED + SYMPTOM-AWARE)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function handlePatientQuery(
-  q: string,
+  rawQuery: string,
   timestamp: string,
   msgId: string,
   language: AssistantLanguage
 ): ChatMessage {
-  // ── A. EMERGENCY INTENT (Acute symptoms, 108, heart attack, emergency) ──
+  const q = rawQuery.trim().toLowerCase();
+
+  // ── 0. FIRST: EVALUATE SYMPTOM TRIAGE LIFECYCLE (Conversational Stepwise Assessment) ──
+  const triageResponse = symptomTriageEngine.processSymptomQuery(rawQuery, timestamp, msgId, language);
+  if (triageResponse) {
+    return triageResponse;
+  }
+
+  // ── A. "WHAT SHOULD I DO?" / "WHAT MEDICINE SHOULD I TAKE FOR FEVER?" ──
+  if (
+    q.includes("what should i do") ||
+    q.includes("how to get rid") ||
+    q.includes("how to cure") ||
+    q.includes("what medicine should i take") ||
+    q.includes("medicine for fever") ||
+    q.includes("tablet for headache")
+  ) {
+    return {
+      id: msgId,
+      sender: "assistant",
+      text:
+        "Fever or pain is usually a sign that your body's immune system is responding to an underlying cause. The safest approach is to monitor symptoms carefully and seek professional advice.\n\n" +
+        "Safe General Guidance:\n" +
+        "• Rest adequately and drink plenty of fluids (water, ORS, warm broths) to avoid dehydration.\n" +
+        "• For over-the-counter fever reducers such as Paracetamol, always check package labeling or consult a healthcare professional/pharmacist for appropriate dosage based on your age and health history.\n" +
+        "• Avoid taking multiple combination remedies simultaneously without medical advice.\n" +
+        "• Never administer aspirin to children or teenagers.\n\n" +
+        "Would you like to find verified public healthcare facilities near your current location?",
+      timestamp,
+      role: "patient",
+      language,
+      actionLink: {
+        label: "Find Healthcare Facilities Near You",
+        href: "/patient/find-care?specialty=general",
+      },
+      suggestedPrompts: [
+        "Find Healthcare Near Me",
+        "Check my active medications",
+        "Check my OPD token",
+      ],
+    };
+  }
+
+  // ── B. EMERGENCY INTENT (Acute symptoms, 108, heart attack, emergency) ──
   if (
     q.includes("emergency") ||
     q.includes("108") ||
@@ -87,14 +131,14 @@ function handlePatientQuery(
         href: "tel:108",
       },
       suggestedPrompts: [
-        "Find nearest emergency trauma care",
+        "Call 108 Emergency",
         "Where is the closest hospital?",
         "Check my active token",
       ],
     };
   }
 
-  // ── B. TOKEN & QUEUE INTENT ──
+  // ── C. TOKEN & QUEUE INTENT ──
   if (
     q.includes("token") ||
     q.includes("queue") ||
@@ -165,7 +209,7 @@ function handlePatientQuery(
     };
   }
 
-  // ── C. APPOINTMENT INTENT ──
+  // ── D. APPOINTMENT INTENT ──
   if (
     q.includes("appointment") ||
     q.includes("visit") ||
@@ -223,7 +267,7 @@ function handlePatientQuery(
     };
   }
 
-  // ── D. PRESCRIPTIONS & MEDICATIONS INTENT ──
+  // ── E. PRESCRIPTIONS & MEDICATIONS INTENT ──
   if (
     q.includes("medicine") ||
     q.includes("prescription") ||
@@ -292,7 +336,7 @@ function handlePatientQuery(
     };
   }
 
-  // ── E. REFERRAL STATUS INTENT ──
+  // ── F. REFERRAL STATUS INTENT ──
   if (
     q.includes("referral") ||
     q.includes("referred") ||
@@ -342,7 +386,7 @@ function handlePatientQuery(
     };
   }
 
-  // ── F. TODAY'S SCHEDULE & REMINDERS INTENT ──
+  // ── G. TODAY'S SCHEDULE & REMINDERS INTENT ──
   if (
     q.includes("today") ||
     q.includes("schedule") ||
@@ -377,7 +421,7 @@ function handlePatientQuery(
     };
   }
 
-  // ── G. HEALTH RECORDS & LAB REPORTS INTENT ──
+  // ── H. HEALTH RECORDS & LAB REPORTS INTENT ──
   if (
     q.includes("record") ||
     q.includes("report") ||
@@ -387,8 +431,6 @@ function handlePatientQuery(
     q.includes("history") ||
     q.includes("abha")
   ) {
-    const records = patientTools.getHealthRecords();
-
     return {
       id: msgId,
       sender: "assistant",
@@ -413,73 +455,6 @@ function handlePatientQuery(
     };
   }
 
-  // ── H. CLINICAL SYMPTOMS & TRIAGE (e.g. "i got severe migrane. need to go to a doctor", "chest pain", "fever", "cough") ──
-  if (
-    q.includes("migrane") ||
-    q.includes("migraine") ||
-    q.includes("headache") ||
-    q.includes("fever") ||
-    q.includes("pain") ||
-    q.includes("cough") ||
-    q.includes("cold") ||
-    q.includes("vomiting") ||
-    q.includes("dizziness") ||
-    q.includes("stomach") ||
-    q.includes("doctor") ||
-    q.includes("sick") ||
-    q.includes("ill") ||
-    q.includes("consult")
-  ) {
-    const facilities = DEMO_FACILITIES.slice(0, 2).map((f, idx) => ({
-      id: f.id,
-      name: f.name,
-      type: f.type,
-      distanceKm: f.distanceKm || (idx === 0 ? 2.4 : 5.8),
-      travelMinutes: f.travelMinutes || (idx === 0 ? 10 : 22),
-      matchScore: idx === 0 ? 94 : 82,
-      specialistAvailable: true,
-      specialistName: f.doctors[0]?.name || "Dr. Prakash More (General Medicine)",
-      diagnosticAvailable: true,
-      diagnosticWaitMinutes: 15,
-      queueWaitMinutes: f.queue?.estimatedWait || 15,
-      isBestMatch: idx === 0,
-    }));
-
-    const isMigraine = q.includes("migran") || q.includes("headache");
-    const advice = isMigraine
-      ? "For severe headache / migraine with light sensitivity or nausea, an evaluation by a General Physician or Neurologist is recommended to assess your symptoms and provide targeted relief."
-      : "Based on your reported symptoms, an in-person evaluation at your nearest Primary Health Centre or District Hospital OPD is recommended.";
-
-    return {
-      id: msgId,
-      sender: "assistant",
-      text:
-        `${advice}\n\n` +
-        `I matched these verified public healthcare facilities near your location with available physicians and open OPD:\n\n` +
-        `1. ${facilities[0].name} — ${facilities[0].distanceKm} km away (~${facilities[0].travelMinutes} min travel)\n` +
-        `   • Doctor: ${facilities[0].specialistName} (Available)\n` +
-        `   • OPD Queue: ~${facilities[0].queueWaitMinutes} min wait\n\n` +
-        `2. ${facilities[1].name} — ${facilities[1].distanceKm} km away\n\n` +
-        `⚠️ Safety Notice: If your symptom is accompanied by sudden vision loss, high fever with stiff neck, or numbness, please seek immediate emergency care.`,
-      timestamp,
-      role: "patient",
-      language,
-      widget: {
-        type: "facility_list",
-        data: facilities,
-      },
-      actionLink: {
-        label: "Book Token at Nearest Facility",
-        href: "/patient/find-care",
-      },
-      suggestedPrompts: [
-        "Book a token at District Hospital",
-        "Check queue wait times",
-        "Call 108 Emergency",
-      ],
-    };
-  }
-
   // ── I. NEARBY / BEST MATCH FACILITY & SERVICE DISCOVERY (ECG, Cardiology, Hospital near me) ──
   if (
     q.includes("near me") ||
@@ -497,7 +472,6 @@ function handlePatientQuery(
   ) {
     const isEcg = q.includes("ecg");
     const isCardio = q.includes("cardio") || q.includes("heart");
-    const isNearestOnly = q.includes("closest") || q.includes("nearest");
 
     const facilities = DEMO_FACILITIES.slice(0, 2).map((f, idx) => ({
       id: f.id,
@@ -556,7 +530,7 @@ function handlePatientQuery(
     sender: "assistant",
     text:
       `I am PRAGATI Care, your verified public health assistant.\n\n` +
-      `You can ask me about:\n` +
+      `You can tell me if you're experiencing any symptoms (fever, migraine, cough, etc.) or ask about:\n` +
       `• Your active OPD token & live queue position\n` +
       `• Your upcoming appointments and checkups\n` +
       `• Your active medications & digital prescriptions\n` +
@@ -567,10 +541,10 @@ function handlePatientQuery(
     role: "patient",
     language,
     suggestedPrompts: [
+      "I got fever",
       "What is my token?",
       "When is my next appointment?",
       "What medicines am I taking?",
-      "Find an ECG near me",
     ],
   };
 }
