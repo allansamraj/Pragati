@@ -8,22 +8,14 @@ import {
   Search, MapPin, Mic, Globe, ArrowRight,
   CheckCircle2, AlertCircle, Zap, ChevronRight,
   Clock, XCircle, Phone, Video, Ticket, AlertTriangle, ShieldCheck,
-  RefreshCw, Navigation, Map as MapIcon, List as ListIcon, X, WifiOff
+  RefreshCw, Navigation, Map as MapIcon, List as ListIcon, X, WifiOff,
+  Filter, Building2
 } from "lucide-react";
 import { Facility } from "@/data/facilities";
 import { useLanguage } from "@/lib/i18n";
 import { RealTimeFacilityMap } from "@/components/shared/RealTimeFacilityMap";
-import {
-  getCurrentLocation,
-  reverseGeocode,
-  geocodeManualLocation,
-  checkLocationPermission,
-  GeocodedLocation
-} from "@/lib/services/locationService";
-import {
-  getNearbyFacilities,
-  NearbySearchResult
-} from "@/lib/services/facilityService";
+import { useLocationContext } from "@/lib/context/LocationContext";
+import { NearbySearchResult } from "@/lib/services/facilityService";
 
 type TriageLevel = "routine" | "urgent" | "emergency";
 
@@ -31,11 +23,25 @@ function FindCareContent() {
   const { t } = useLanguage();
   const searchParams = useSearchParams();
 
-  // Location States
-  const [patientLocation, setPatientLocation] = useState<GeocodedLocation | null>(null);
-  const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "granted" | "denied" | "error">("idle");
-  const [locationError, setLocationError] = useState<string | null>(null);
-  const [isRefreshingLocation, setIsRefreshingLocation] = useState(false);
+  // Centralized Global Location Context
+  const {
+    lat,
+    lng,
+    locality,
+    source,
+    status: locationStatus,
+    error: locationError,
+    isRefreshing: isRefreshingLocation,
+    isOffline,
+    lastUpdated,
+    refreshGPS,
+    setManualLocation,
+    clearManualLocation,
+    getDirectionsUrl,
+    searchNearby,
+  } = useLocationContext();
+
+  // Toast
   const [locationToast, setLocationToast] = useState<string | null>(null);
 
   // Manual Location Modal
@@ -49,6 +55,7 @@ function FindCareContent() {
   const [specialtyParam, setSpecialtyParam] = useState("");
   const [triageLevel, setTriageLevel] = useState<TriageLevel>("urgent");
   const [selectedFacilityId, setSelectedFacilityId] = useState<string>("fac-001");
+  const [customRadiusKm, setCustomRadiusKm] = useState<number | undefined>(undefined);
 
   // Mobile View Toggle
   const [mobileTab, setMobileTab] = useState<"list" | "map">("list");
@@ -57,70 +64,11 @@ function FindCareContent() {
   const [searchResult, setSearchResult] = useState<NearbySearchResult | null>(null);
   const [searchingFacilities, setSearchingFacilities] = useState(false);
 
-  // ── 1. RETRIEVE CURRENT DEVICE GPS ──
-  const requestCurrentLocation = useCallback(async (isUserRefresh = false) => {
-    if (isUserRefresh) {
-      setIsRefreshingLocation(true);
-      setLocationToast("Updating location...");
-    } else {
-      setLocationStatus("loading");
-    }
-    setLocationError(null);
-
-    try {
-      const coords = await getCurrentLocation();
-      const geocoded = await reverseGeocode(coords.lat, coords.lng);
-      setPatientLocation(geocoded);
-      setLocationStatus("granted");
-
-      if (isUserRefresh) {
-        setLocationToast("Location updated");
-        setTimeout(() => setLocationToast(null), 3000);
-      }
-    } catch (err: any) {
-      console.warn("GPS lookup error:", err);
-      setLocationStatus("error");
-      setLocationError(err?.message || "Unable to determine your current location.");
-      if (isUserRefresh) {
-        setLocationToast(null);
-      }
-    } finally {
-      setIsRefreshingLocation(false);
-    }
-  }, []);
-
-  // ── 2. INITIALIZE LOCATION CHECK ON MOUNT ──
-  useEffect(() => {
-    const initLocation = async () => {
-      // Check if permission already granted or cached
-      const perm = await checkLocationPermission();
-      if (perm === "granted") {
-        requestCurrentLocation(false);
-      } else {
-        // Fallback: auto-request location or prompt gracefully
-        requestCurrentLocation(false);
-      }
-    };
-    initLocation();
-  }, [requestCurrentLocation]);
-
-  // ── 3. FETCH NEARBY FACILITIES WHEN LOCATION OR QUERY CHANGES ──
-  const refreshFacilities = useCallback(async () => {
-    // If location is not available yet, use default central fallback coordinates
-    const lat = patientLocation?.lat ?? 21.3734;
-    const lng = patientLocation?.lng ?? 74.2404;
-    const locality = patientLocation?.locality ?? "Nandurbar, Maharashtra";
-
+  // ── REFRESH FACILITIES WHEN LOCATION, QUERY, OR RADIUS CHANGES ──
+  const executeSearch = useCallback(async () => {
     setSearchingFacilities(true);
     try {
-      const res = await getNearbyFacilities({
-        lat,
-        lng,
-        locality,
-        needQuery: query,
-        specialty: specialtyParam,
-        isEmergency: triageLevel === "emergency",
-      });
+      const res = await searchNearby(query, specialtyParam, triageLevel === "emergency");
       setSearchResult(res);
       if (res.facilities.length > 0) {
         setSelectedFacilityId(res.facilities[0].id);
@@ -130,13 +78,13 @@ function FindCareContent() {
     } finally {
       setSearchingFacilities(false);
     }
-  }, [patientLocation, query, specialtyParam, triageLevel]);
+  }, [searchNearby, query, specialtyParam, triageLevel]);
 
   useEffect(() => {
-    refreshFacilities();
-  }, [refreshFacilities]);
+    executeSearch();
+  }, [executeSearch]);
 
-  // ── 4. REACT TO URL PARAMS (e.g. ?specialty=cardiology or ?q=...) ──
+  // ── REACT TO URL PARAMS (e.g. ?specialty=cardiology or ?q=...) ──
   useEffect(() => {
     const specialty = searchParams?.get("specialty");
     const q = searchParams?.get("q");
@@ -158,7 +106,7 @@ function FindCareContent() {
     }
   }, [searchParams]);
 
-  // ── 5. MANUAL LOCATION SEARCH HANDLER ──
+  // ── MANUAL LOCATION SUBMIT ──
   const handleManualLocationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualQuery.trim()) return;
@@ -166,13 +114,10 @@ function FindCareContent() {
     setManualLoading(true);
     setManualError(null);
     try {
-      const geocoded = await geocodeManualLocation(manualQuery);
-      setPatientLocation(geocoded);
-      setLocationStatus("granted");
-      setLocationError(null);
+      await setManualLocation(manualQuery);
       setShowManualModal(false);
       setManualQuery("");
-      setLocationToast(`Location set to ${geocoded.locality}`);
+      setLocationToast(`Location set to manual pin`);
       setTimeout(() => setLocationToast(null), 3500);
     } catch (err: any) {
       setManualError(err?.message || "Location not found. Please enter a valid PIN or city.");
@@ -181,9 +126,16 @@ function FindCareContent() {
     }
   };
 
+  const handleRefreshGPS = async () => {
+    setLocationToast("Updating location...");
+    await refreshGPS(true);
+    setLocationToast("Location updated");
+    setTimeout(() => setLocationToast(null), 3000);
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    refreshFacilities();
+    executeSearch();
   };
 
   const handleTriageSelect = (level: TriageLevel, sampleQueryKey: string) => {
@@ -198,10 +150,14 @@ function FindCareContent() {
     }
   };
 
-  const facilities = searchResult?.facilities || [];
-  const searchRadiusKm = searchResult?.searchRadiusKm || 10;
+  // Filter facilities by user-selected radius if specified
+  let facilities = searchResult?.facilities || [];
+  if (customRadiusKm !== undefined) {
+    facilities = facilities.filter((f) => (f.distanceKm ?? 999) <= customRadiusKm);
+  }
+
+  const effectiveRadiusKm = customRadiusKm ?? searchResult?.searchRadiusKm ?? 10;
   const isBestMatchMode = searchResult?.isBestMatchMode || false;
-  const isOffline = searchResult?.isOffline || false;
 
   return (
     <div className="max-w-[1240px] space-y-5">
@@ -226,7 +182,7 @@ function FindCareContent() {
       </AnimatePresence>
 
       {/* ── LOCATION PERMISSION / ERROR BANNER (WHEN NOT DETECTED) ── */}
-      {locationStatus === "error" && !patientLocation && (
+      {locationStatus === "error" && (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-[14px] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 shadow-2xs">
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
@@ -239,7 +195,7 @@ function FindCareContent() {
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
-              onClick={() => requestCurrentLocation(true)}
+              onClick={handleRefreshGPS}
               className="px-3.5 py-1.5 bg-burgundy-700 hover:bg-burgundy-800 text-white rounded-[8px] text-[12px] font-bold transition-colors cursor-pointer shadow-2xs"
             >
               Try Again
@@ -265,7 +221,7 @@ function FindCareContent() {
               <span className="text-[11px] font-extrabold uppercase tracking-wider text-burgundy-700">
                 Near You
               </span>
-              {patientLocation?.isManual ? (
+              {source === "MANUAL" ? (
                 <span className="text-[10px] text-ink-tertiary font-medium bg-bg px-1.5 py-0.2 rounded border border-[rgba(124,45,45,0.08)]">
                   Using selected location
                 </span>
@@ -276,14 +232,14 @@ function FindCareContent() {
               )}
             </div>
             <h2 className="text-[16px] font-extrabold text-ink-primary mt-0.5">
-              {patientLocation?.locality || "Detecting your location..."}
+              {locality}
             </h2>
           </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <button
-            onClick={() => requestCurrentLocation(true)}
+            onClick={handleRefreshGPS}
             disabled={isRefreshingLocation}
             className="px-3.5 py-1.5 bg-bg hover:bg-blush border border-[rgba(124,45,45,0.12)] rounded-[8px] text-[12px] font-bold text-ink-primary flex items-center gap-1.5 transition-colors cursor-pointer"
           >
@@ -308,7 +264,7 @@ function FindCareContent() {
             <span>LAST KNOWN DATA (Offline Mode) · Device GPS active</span>
           </div>
           <span className="text-[11px] font-mono text-amber-800">
-            Last synchronized: {searchResult?.lastSyncTime || "10:15 AM"}
+            Last synchronized: {lastUpdated || "10:15 AM"}
           </span>
         </div>
       )}
@@ -429,19 +385,31 @@ function FindCareContent() {
           </div>
 
           <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 bg-bg border border-[rgba(124,45,45,0.1)] rounded-[8px] px-3 py-1.5">
-                <MapPin className="w-3.5 h-3.5 text-burgundy-700" />
-                <span className="text-[12px] font-semibold text-ink-secondary">
-                  {patientLocation?.locality || "Current Location"}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-bg border border-[rgba(124,45,45,0.1)] rounded-[8px] px-3 py-1.5">
-                <Zap className="w-3.5 h-3.5 text-amber-600" />
-                <span className="text-[12px] font-semibold text-ink-secondary capitalize">
-                  {triageLevel} Priority
-                </span>
-              </div>
+            {/* Radius Filters */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-bold text-ink-tertiary mr-1 flex items-center gap-1">
+                <Filter className="w-3 h-3" /> Distance:
+              </span>
+              {[
+                { label: "Within 2 km", val: 2 },
+                { label: "Within 5 km", val: 5 },
+                { label: "Within 10 km", val: 10 },
+                { label: "Within 25 km", val: 25 },
+                { label: "Any distance", val: undefined },
+              ].map((chip) => (
+                <button
+                  key={chip.label}
+                  type="button"
+                  onClick={() => setCustomRadiusKm(chip.val)}
+                  className={`px-2.5 py-1 rounded-[6px] text-[11px] font-semibold border transition-colors cursor-pointer ${
+                    customRadiusKm === chip.val
+                      ? "bg-burgundy-700 text-white border-burgundy-700 shadow-2xs"
+                      : "bg-bg text-ink-secondary border-[rgba(124,45,45,0.1)] hover:bg-blush"
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              ))}
             </div>
 
             <button
@@ -481,9 +449,9 @@ function FindCareContent() {
             {isBestMatchMode ? "Best Match Healthcare Facilities" : "Nearby Healthcare Facilities"}
           </h2>
           <p className="text-[12px] text-ink-secondary">
-            {searchResult?.isExpandedRadius
-              ? `Showing additional facilities within ${searchRadiusKm} km (expanded search)`
-              : `Showing healthcare facilities within ${searchRadiusKm} km of your location`}
+            {searchResult?.isExpandedRadius && customRadiusKm === undefined
+              ? `Showing additional facilities within ${effectiveRadiusKm} km (expanded search)`
+              : `Showing healthcare facilities within ${effectiveRadiusKm} km of your location`}
           </p>
         </div>
 
@@ -593,16 +561,25 @@ function FindCareContent() {
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <a
+                      href={getDirectionsUrl(facility.lat, facility.lng, facility.name)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-2 rounded-[8px] bg-white hover:bg-blush border border-[rgba(124,45,45,0.15)] text-ink-secondary hover:text-burgundy-700 text-[12px] font-bold transition-colors flex items-center gap-1.5"
+                    >
+                      <Navigation className="w-3.5 h-3.5 text-burgundy-700" /> Directions
+                    </a>
+
                     <Link
                       href="/patient/token"
-                      className="px-4 py-2 rounded-[8px] bg-burgundy-700 hover:bg-burgundy-800 text-white text-[12.5px] font-bold transition-colors flex items-center gap-1.5 shadow-2xs"
+                      className="px-3.5 py-2 rounded-[8px] bg-burgundy-700 hover:bg-burgundy-800 text-white text-[12px] font-bold transition-colors flex items-center gap-1.5 shadow-2xs"
                     >
                       <Ticket className="w-3.5 h-3.5" /> Book Token (#{facility.queue?.nowServing || 41})
                     </Link>
 
                     <Link
                       href="/patient/teleconsult"
-                      className="px-3.5 py-2 rounded-[8px] bg-blush border border-[rgba(124,45,45,0.15)] text-burgundy-700 hover:bg-rose text-[12.5px] font-semibold transition-colors flex items-center gap-1.5"
+                      className="px-3 py-2 rounded-[8px] bg-blush border border-[rgba(124,45,45,0.15)] text-burgundy-700 hover:bg-rose text-[12px] font-semibold transition-colors flex items-center gap-1.5"
                     >
                       <Video className="w-3.5 h-3.5" /> Teleconsult
                     </Link>
@@ -619,8 +596,8 @@ function FindCareContent() {
             facilities={facilities}
             selectedFacilityId={selectedFacilityId}
             onSelectFacility={setSelectedFacilityId}
-            patientCoords={patientLocation}
-            searchRadiusKm={searchRadiusKm}
+            patientCoords={{ lat, lng, locality, isManual: source === "MANUAL" }}
+            searchRadiusKm={effectiveRadiusKm}
           />
         </div>
       </div>
@@ -687,7 +664,7 @@ function FindCareContent() {
                   <button
                     type="button"
                     onClick={() => setShowManualModal(false)}
-                    className="px-3.5 py-2 rounded-[8px] border border-[rgba(124,45,45,0.12)] text-[12px] font-semibold text-ink-secondary"
+                    className="px-3.5 py-2 rounded-[8px] border border-[rgba(124,45,45,0.12)] text-[12px] font-semibold text-ink-secondary cursor-pointer"
                   >
                     Cancel
                   </button>

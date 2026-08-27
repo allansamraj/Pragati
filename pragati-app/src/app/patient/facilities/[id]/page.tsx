@@ -5,10 +5,11 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   MapPin, Clock, Phone, CheckCircle2, AlertCircle, XCircle,
-  ArrowRight, RefreshCw, Ticket, Video, ChevronLeft
+  ArrowRight, RefreshCw, Ticket, Video, ChevronLeft, Navigation
 } from "lucide-react";
 import { DEMO_FACILITIES } from "@/data/facilities";
 import { StatusBadge } from "@/components/ui";
+import { useLocationContext } from "@/lib/context/LocationContext";
 
 type Status = "available" | "limited" | "unavailable";
 
@@ -26,13 +27,16 @@ function StatusPill({ status }: { status: Status }) {
 }
 
 export default function FacilityDetailPage({ params }: { params: { id: string } }) {
+  const { getDistanceTo, getDirectionsUrl, locality } = useLocationContext();
   const facility = DEMO_FACILITIES.find((f) => f.id === params.id) ?? DEMO_FACILITIES[0];
 
+  const { distanceKm, travelMinutes } = getDistanceTo(facility.lat, facility.lng);
+
   return (
-    <div className="max-w-[900px]">
+    <div className="max-w-[900px] space-y-5">
       {/* Back */}
-      <Link href="/patient/find-care" className="inline-flex items-center gap-1.5 text-[13px] text-ink-tertiary hover:text-ink-primary mb-5 transition-colors">
-        <ChevronLeft className="w-4 h-4" /> Back to results
+      <Link href="/patient/find-care" className="inline-flex items-center gap-1.5 text-[13px] text-ink-tertiary hover:text-ink-primary transition-colors">
+        <ChevronLeft className="w-4 h-4" /> Back to Care Finder
       </Link>
 
       {/* Header */}
@@ -40,10 +44,10 @@ export default function FacilityDetailPage({ params }: { params: { id: string } 
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="bg-surface border border-[rgba(124,45,45,0.12)] rounded-[18px] overflow-hidden shadow-sm mb-5"
+        className="bg-white border border-[rgba(124,45,45,0.12)] rounded-[18px] overflow-hidden shadow-2xs"
       >
         <div className="bg-blush/20 border-b border-[rgba(124,45,45,0.08)] px-6 py-5">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 {(facility.matchScore ?? 0) >= 90 && (
@@ -59,49 +63,61 @@ export default function FacilityDetailPage({ params }: { params: { id: string } 
                 <div className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" aria-hidden />{facility.phone}</div>
               </div>
             </div>
-            <div className="flex flex-col items-end gap-2 flex-shrink-0">
-              <div className="text-[28px] font-bold font-mono text-available-500">{facility.matchScore}%</div>
-              <div className="text-[9px] uppercase tracking-widest text-ink-tertiary">match score</div>
-              <div className="text-[12px] text-ink-secondary">{facility.distanceKm} km · {facility.travelMinutes} min</div>
+            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+              <div className="text-[28px] font-bold font-mono text-emerald-700">{facility.matchScore || 94}%</div>
+              <div className="text-[9px] uppercase tracking-widest text-ink-tertiary font-bold">Suitability Score</div>
+              <div className="text-[12.5px] font-bold text-burgundy-700 mt-1">
+                {distanceKm} km from {locality} (~{travelMinutes} min)
+              </div>
             </div>
           </div>
         </div>
 
         {/* CTAs */}
-        <div className="px-6 py-4 flex items-center gap-3 flex-wrap">
+        <div className="px-6 py-4 flex items-center gap-3 flex-wrap bg-bg/50">
           <Link
             href="/patient/token"
-            className="flex items-center gap-2 bg-burgundy-700 text-white text-[14px] font-semibold px-5 py-2.5 rounded-[10px] hover:bg-burgundy-800 transition-colors"
+            className="flex items-center gap-2 bg-burgundy-700 text-white text-[13.5px] font-bold px-5 py-2.5 rounded-[10px] hover:bg-burgundy-800 transition-colors shadow-2xs"
           >
-            <Ticket className="w-4 h-4" /> Book Token
+            <Ticket className="w-4 h-4" /> Book Token (#{facility.queue?.nowServing || 41})
           </Link>
+          <a
+            href={getDirectionsUrl(facility.lat, facility.lng, facility.name)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 bg-white border border-[rgba(124,45,45,0.15)] text-ink-primary hover:text-burgundy-700 text-[13.5px] font-bold px-4 py-2.5 rounded-[10px] hover:bg-blush transition-colors"
+          >
+            <Navigation className="w-4 h-4 text-burgundy-700" /> Get Directions
+          </a>
           {facility.hasTelemedicine && (
-            <button className="flex items-center gap-2 border border-[rgba(124,45,45,0.15)] text-ink-secondary text-[14px] font-medium px-5 py-2.5 rounded-[10px] hover:bg-blush transition-colors">
+            <Link
+              href="/patient/teleconsult"
+              className="flex items-center gap-2 border border-[rgba(124,45,45,0.15)] text-burgundy-700 text-[13.5px] font-semibold px-4 py-2.5 rounded-[10px] hover:bg-rose transition-colors bg-blush"
+            >
               <Video className="w-4 h-4" /> Request Teleconsultation
-            </button>
+            </Link>
           )}
         </div>
       </motion.div>
 
       {/* Details grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-
         {/* Doctors */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}
-          className="bg-surface border border-[rgba(124,45,45,0.1)] rounded-[14px] p-5"
+          className="bg-white border border-[rgba(124,45,45,0.1)] rounded-[14px] p-5 shadow-2xs"
         >
-          <h2 className="text-[14px] font-bold text-ink-primary mb-4">Doctors</h2>
+          <h2 className="text-[14px] font-bold text-ink-primary mb-4">Specialist Doctors On Duty</h2>
           <div className="space-y-3">
             {facility.doctors.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between gap-2">
+              <div key={doc.id} className="flex items-center justify-between gap-2 p-2.5 rounded-[8px] bg-bg border border-[rgba(124,45,45,0.06)]">
                 <div>
-                  <div className="text-[13px] font-semibold text-ink-primary">{doc.name}</div>
+                  <div className="text-[13px] font-bold text-ink-primary">{doc.name}</div>
                   <div className="text-[11px] text-ink-tertiary">{doc.specialty}</div>
                   {doc.nextSlot && doc.status !== "unavailable" && (
-                    <div className="text-[11px] text-ink-tertiary mt-0.5">Next: {doc.nextSlot}</div>
+                    <div className="text-[10px] text-available-600 font-medium mt-0.5">Next Slot: {doc.nextSlot}</div>
                   )}
                 </div>
-                <StatusPill status={doc.status as Status} />
+                <StatusPill status={doc.status} />
               </div>
             ))}
           </div>
@@ -109,65 +125,22 @@ export default function FacilityDetailPage({ params }: { params: { id: string } 
 
         {/* Diagnostics */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }}
-          className="bg-surface border border-[rgba(124,45,45,0.1)] rounded-[14px] p-5"
+          className="bg-white border border-[rgba(124,45,45,0.1)] rounded-[14px] p-5 shadow-2xs"
         >
-          <h2 className="text-[14px] font-bold text-ink-primary mb-4">Diagnostics</h2>
+          <h2 className="text-[14px] font-bold text-ink-primary mb-4">Diagnostics &amp; Lab Capacity</h2>
           <div className="space-y-3">
             {facility.diagnostics.map((diag) => (
-              <div key={diag.id} className="flex items-center justify-between gap-2">
+              <div key={diag.id} className="flex items-center justify-between gap-2 p-2.5 rounded-[8px] bg-bg border border-[rgba(124,45,45,0.06)]">
                 <div>
-                  <div className="text-[13px] font-semibold text-ink-primary">{diag.name}</div>
+                  <div className="text-[13px] font-bold text-ink-primary">{diag.name}</div>
                   {diag.waitTime && diag.status !== "unavailable" && (
-                    <div className="text-[11px] text-ink-tertiary">Est. wait: {diag.waitTime} min</div>
+                    <div className="text-[11px] text-ink-tertiary">Est. wait: {diag.waitTime} mins</div>
                   )}
                 </div>
-                <StatusPill status={diag.status as Status} />
+                <StatusPill status={diag.status} />
               </div>
             ))}
           </div>
-        </motion.div>
-
-        {/* Queue */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.2 }}
-          className="bg-surface border border-[rgba(124,45,45,0.1)] rounded-[14px] p-5"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[14px] font-bold text-ink-primary">OPD Queue</h2>
-            <div className="flex items-center gap-1.5 text-[11px] text-ink-tertiary">
-              <RefreshCw className="w-3 h-3" aria-hidden />
-              {facility.queue.lastUpdated}
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div className="bg-bg border border-[rgba(124,45,45,0.07)] rounded-[10px] p-3">
-              <div className="text-[24px] font-bold font-mono text-ink-primary">#{facility.queue.nowServing}</div>
-              <div className="text-[10px] text-ink-tertiary mt-0.5">Now serving</div>
-            </div>
-            <div className="bg-bg border border-[rgba(124,45,45,0.07)] rounded-[10px] p-3">
-              <div className="text-[24px] font-bold font-mono text-ink-primary">{facility.queue.totalAhead}</div>
-              <div className="text-[10px] text-ink-tertiary mt-0.5">In queue</div>
-            </div>
-            <div className="bg-bg border border-[rgba(124,45,45,0.07)] rounded-[10px] p-3">
-              <div className="text-[24px] font-bold font-mono text-ink-primary">{facility.queue.estimatedWait}</div>
-              <div className="text-[10px] text-ink-tertiary mt-0.5">Min wait</div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Medicines */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.25 }}
-          className="bg-surface border border-[rgba(124,45,45,0.1)] rounded-[14px] p-5"
-        >
-          <h2 className="text-[14px] font-bold text-ink-primary mb-4">Key Medicines</h2>
-          <div className="space-y-3">
-            {facility.medicines.map((med) => (
-              <div key={med.name} className="flex items-center justify-between gap-2">
-                <div className="text-[13px] font-semibold text-ink-primary">{med.name}</div>
-                <StatusPill status={med.status as Status} />
-              </div>
-            ))}
-          </div>
-          <p className="text-[11px] text-ink-tertiary mt-3">Selected essential medicines shown. Full list available at facility pharmacy.</p>
         </motion.div>
       </div>
     </div>

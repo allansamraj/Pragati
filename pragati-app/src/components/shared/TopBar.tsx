@@ -5,15 +5,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Globe, Wifi, WifiOff, RefreshCw, Sparkles,
-  CheckCircle2, AlertTriangle, ShieldCheck, User, Stethoscope, Pill, Building2
+  CheckCircle2, AlertTriangle, ShieldCheck, User, Stethoscope, Pill, Building2, MapPin
 } from "lucide-react";
 import { useLanguage, type Language } from "@/lib/i18n";
 import { useConnectivity, type NetworkMode } from "@/lib/connectivity/ConnectivityContext";
+import { useLocationContext } from "@/lib/context/LocationContext";
 
 export function TopBar() {
   const pathname = usePathname();
   const { language, setLanguage, t } = useLanguage();
-  const { mode, setMode, pendingSyncCount, syncData, isSyncing, isOffline } = useConnectivity();
+  const { mode, setMode } = useConnectivity();
+  const { locality, source, refreshGPS, isRefreshing } = useLocationContext();
 
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [connMenuOpen, setConnMenuOpen] = useState(false);
@@ -100,8 +102,19 @@ export function TopBar() {
           </Link>
         </div>
 
-        {/* Right: Connectivity Simulator + Language */}
+        {/* Right: Global Location Indicator + Connectivity + Language */}
         <div className="flex items-center gap-2.5 ml-auto">
+          {/* Subtle Global Location Pill */}
+          <button
+            onClick={() => refreshGPS(true)}
+            title={`Location: ${locality} (${source === "CURRENT_GPS" ? "Device GPS" : "Manual Location"}). Click to refresh.`}
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-[7px] bg-white/5 hover:bg-white/10 border border-white/15 text-white/90 text-[11px] transition-colors cursor-pointer"
+          >
+            <MapPin className="w-3 h-3 text-rose-400 flex-shrink-0" />
+            <span className="max-w-[130px] truncate">{locality}</span>
+            <RefreshCw className={`w-2.5 h-2.5 text-white/50 ${isRefreshing ? "animate-spin" : ""}`} />
+          </button>
+
           {/* Connectivity / 2G Offline Simulator */}
           <div className="relative">
             <button
@@ -109,7 +122,7 @@ export function TopBar() {
                 setConnMenuOpen(!connMenuOpen);
                 setLangMenuOpen(false);
               }}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[7px] border transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[7px] border transition-all cursor-pointer ${
                 mode === "offline"
                   ? "bg-rose-950/80 border-rose-500/50 text-rose-200 font-bold"
                   : mode === "low-data"
@@ -141,7 +154,7 @@ export function TopBar() {
                       setMode(item.id as NetworkMode);
                       setConnMenuOpen(false);
                     }}
-                    className={`w-full text-left p-2 rounded-[7px] transition-colors ${
+                    className={`w-full text-left p-2 rounded-[7px] transition-colors cursor-pointer ${
                       mode === item.id ? "bg-burgundy-700 text-white" : "hover:bg-white/10 text-white/80"
                     }`}
                   >

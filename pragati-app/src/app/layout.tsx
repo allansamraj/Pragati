@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/i18n";
 import { ConnectivityProvider } from "@/lib/connectivity/ConnectivityContext";
+import { LocationProvider } from "@/lib/context/LocationContext";
 import { TopBar } from "@/components/shared/TopBar";
 import { PragatiAssist } from "@/components/ai/PragatiAssist";
 
@@ -40,9 +41,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <LanguageProvider>
           <ConnectivityProvider>
-            <TopBar />
-            {children}
-            <PragatiAssist />
+            <LocationProvider>
+              <TopBar />
+              {children}
+              <PragatiAssist />
+            </LocationProvider>
           </ConnectivityProvider>
         </LanguageProvider>
       </body>

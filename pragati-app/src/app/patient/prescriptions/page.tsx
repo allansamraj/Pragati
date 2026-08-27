@@ -2,12 +2,18 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download, FileText, Clock, Calendar, CheckCircle2, AlertCircle, Pill, ShieldCheck, QrCode, X, Printer, Building2, Stethoscope, Share2 } from "lucide-react";
+import {
+  Download, FileText, Clock, Calendar, CheckCircle2, AlertCircle,
+  Pill, ShieldCheck, QrCode, X, Printer, Building2, Stethoscope,
+  Share2, MapPin, Navigation
+} from "lucide-react";
 import { DEMO_PATIENT, Medication } from "@/data/patient";
 import { useLanguage } from "@/lib/i18n";
+import { useLocationContext } from "@/lib/context/LocationContext";
 
 export default function PrescriptionsPage() {
   const { t } = useLanguage();
+  const { locality, nearbyFacilities, getDirectionsUrl } = useLocationContext();
   const [selectedRxDoc, setSelectedRxDoc] = useState<string | null>(null);
   const [refillSuccess, setRefillSuccess] = useState<string | null>(null);
 
@@ -43,7 +49,7 @@ export default function PrescriptionsPage() {
           >
             <div className="flex items-center gap-2 font-semibold">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-              <span>Refill requested for <strong>{refillSuccess}</strong>. Sent to Nandurbar Central Pharmacy counter.</span>
+              <span>Refill requested for <strong>{refillSuccess}</strong>. Sent to nearest pharmacy counter.</span>
             </div>
             <span className="text-[11px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">
               Reserved in Queue
@@ -51,6 +57,45 @@ export default function PrescriptionsPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── NEARBY PHARMACY DISPENSE COUNTERS (LOCATION-AWARE) ── */}
+      <div className="bg-white border border-[rgba(124,45,45,0.1)] rounded-[16px] p-5 shadow-2xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-[15px] font-bold text-ink-primary">
+              Public Dispensaries &amp; Pharmacies Near You ({locality})
+            </h2>
+            <p className="text-[11.5px] text-ink-secondary">
+              Verified generic medicine availability within current travel distance
+            </p>
+          </div>
+          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+            ● Free Generic Stock
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          {nearbyFacilities.slice(0, 2).map((fac) => (
+            <div key={fac.id} className="p-3.5 rounded-[10px] bg-bg border border-[rgba(124,45,45,0.08)] flex items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-burgundy-700">{fac.type} Pharmacy</span>
+                <h4 className="text-[13px] font-bold text-ink-primary leading-tight mt-0.5">{fac.name}</h4>
+                <div className="text-[11px] text-ink-secondary mt-0.5">
+                  <strong className="text-burgundy-700">{fac.distanceKm} km away</strong> · Stock Available
+                </div>
+              </div>
+              <a
+                href={getDirectionsUrl(fac.lat, fac.lng, `${fac.name} Pharmacy`)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 bg-white hover:bg-blush border border-[rgba(124,45,45,0.12)] text-burgundy-700 text-[11px] font-bold rounded-[6px] flex items-center gap-1 shadow-2xs flex-shrink-0"
+              >
+                <Navigation className="w-3 h-3" /> Directions
+              </a>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* ── MAIN ACTIVE PRESCRIPTION CARD 1: CARDIOLOGY ── */}
       <motion.div
@@ -105,7 +150,7 @@ export default function PrescriptionsPage() {
               </button>
               <button
                 onClick={() => setSelectedRxDoc("RX-MH-2026-8812")}
-                className="flex items-center justify-center gap-1.5 text-[11.5px] font-semibold text-ink-secondary bg-white border border-[rgba(124,45,45,0.12)] rounded-[8px] px-3 py-1.5 hover:bg-blush transition-colors"
+                className="flex items-center justify-center gap-1.5 text-[11.5px] font-semibold text-ink-secondary bg-white border border-[rgba(124,45,45,0.12)] rounded-[8px] px-3 py-1.5 hover:bg-blush transition-colors cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" /> Download PDF
               </button>
@@ -205,7 +250,7 @@ export default function PrescriptionsPage() {
 
           <button
             onClick={() => setSelectedRxDoc("RX-MH-2026-7640")}
-            className="text-[11.5px] font-bold text-burgundy-700 bg-blush hover:bg-rose border border-[rgba(124,45,45,0.12)] rounded-[8px] px-3 py-1.5 flex items-center gap-1"
+            className="text-[11.5px] font-bold text-burgundy-700 bg-blush hover:bg-rose border border-[rgba(124,45,45,0.12)] rounded-[8px] px-3 py-1.5 flex items-center gap-1 cursor-pointer"
           >
             <FileText className="w-3.5 h-3.5" /> View Prescription
           </button>
@@ -299,86 +344,66 @@ export default function PrescriptionsPage() {
                   <strong>Clinical Diagnosis:</strong> Class I Exertional Angina, Controlled Hypertension, Mild Dyslipidemia.
                 </div>
 
-                {/* Rx Symbol and Medications Table */}
-                <div className="space-y-2">
-                  <div className="text-[18px] font-serif font-black text-burgundy-800">
-                    ℞ <span className="text-[12px] font-sans font-bold text-ink-secondary tracking-normal">Medication Schedule:</span>
-                  </div>
-
-                  <table className="w-full text-left text-[11.5px] border-collapse">
-                    <thead>
-                      <tr className="border-b border-ink-primary/20 bg-bg text-[10px] uppercase font-bold text-ink-tertiary">
-                        <th className="py-2 px-2">#</th>
-                        <th className="py-2 px-2">Medicine &amp; Strength</th>
-                        <th className="py-2 px-2">Dosage &amp; Timing</th>
-                        <th className="py-2 px-2">Duration</th>
-                        <th className="py-2 px-2">Qty</th>
+                {/* Rx Item Table */}
+                <div className="border border-[rgba(124,45,45,0.15)] rounded-[8px] overflow-hidden text-[11.5px]">
+                  <table className="w-full text-left">
+                    <thead className="bg-[#FAF8F6] border-b border-[rgba(124,45,45,0.1)] text-ink-secondary font-bold">
+                      <tr>
+                        <th className="p-2.5">#</th>
+                        <th className="p-2.5">Medication Name (Generic)</th>
+                        <th className="p-2.5">Dose</th>
+                        <th className="p-2.5">Frequency</th>
+                        <th className="p-2.5">Duration</th>
+                        <th className="p-2.5 text-right">Dispense Qty</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[rgba(124,45,45,0.06)]">
                       <tr>
-                        <td className="py-2 px-2 font-mono font-bold">1</td>
-                        <td className="py-2 px-2">
-                          <strong>Tab. Metoprolol Succinate ER 50mg</strong>
-                          <div className="text-[10px] text-ink-tertiary">Take in morning after breakfast</div>
-                        </td>
-                        <td className="py-2 px-2 font-semibold">1 - 0 - 0 (Morning)</td>
-                        <td className="py-2 px-2">30 Days</td>
-                        <td className="py-2 px-2 font-mono">30 Tabs</td>
+                        <td className="p-2.5 font-mono">1</td>
+                        <td className="p-2.5 font-bold">Metoprolol Succinate 50mg ER</td>
+                        <td className="p-2.5">50 mg</td>
+                        <td className="p-2.5">1-0-0 (Morning OD)</td>
+                        <td className="p-2.5">30 Days</td>
+                        <td className="p-2.5 font-mono text-right">30 Tabs</td>
                       </tr>
                       <tr>
-                        <td className="py-2 px-2 font-mono font-bold">2</td>
-                        <td className="py-2 px-2">
-                          <strong>Tab. Ecosprin (Aspirin) 75mg</strong>
-                          <div className="text-[10px] text-ink-tertiary">Take after lunch with water</div>
-                        </td>
-                        <td className="py-2 px-2 font-semibold">0 - 1 - 0 (Afternoon)</td>
-                        <td className="py-2 px-2">30 Days</td>
-                        <td className="py-2 px-2 font-mono">30 Tabs</td>
+                        <td className="p-2.5 font-mono">2</td>
+                        <td className="p-2.5 font-bold">Atorvastatin Calcium 20mg</td>
+                        <td className="p-2.5">20 mg</td>
+                        <td className="p-2.5">0-0-1 (Bedtime HS)</td>
+                        <td className="p-2.5">30 Days</td>
+                        <td className="p-2.5 font-mono text-right">30 Tabs</td>
                       </tr>
                       <tr>
-                        <td className="py-2 px-2 font-mono font-bold">3</td>
-                        <td className="py-2 px-2">
-                          <strong>Tab. Atorvastatin 20mg</strong>
-                          <div className="text-[10px] text-ink-tertiary">Take at bedtime</div>
-                        </td>
-                        <td className="py-2 px-2 font-semibold">0 - 0 - 1 (Night)</td>
-                        <td className="py-2 px-2">30 Days</td>
-                        <td className="py-2 px-2 font-mono">30 Tabs</td>
-                      </tr>
-                      <tr>
-                        <td className="py-2 px-2 font-mono font-bold">4</td>
-                        <td className="py-2 px-2">
-                          <strong>Tab. Sorbitrate 5mg (SOS)</strong>
-                          <div className="text-[10px] text-ink-tertiary">Place under tongue if chest tightness occurs</div>
-                        </td>
-                        <td className="py-2 px-2 font-semibold">SOS as needed</td>
-                        <td className="py-2 px-2">15 Days</td>
-                        <td className="py-2 px-2 font-mono">15 Tabs</td>
+                        <td className="p-2.5 font-mono">3</td>
+                        <td className="p-2.5 font-bold">Aspirin (Enteric Coated) 75mg</td>
+                        <td className="p-2.5">75 mg</td>
+                        <td className="p-2.5">0-1-0 (After Lunch)</td>
+                        <td className="p-2.5">30 Days</td>
+                        <td className="p-2.5 font-mono text-right">30 Tabs</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
 
-                {/* Doctor's Signature Block */}
+                {/* Doctor Digital Signature */}
                 <div className="pt-4 border-t border-[rgba(124,45,45,0.1)] flex items-end justify-between text-[11px]">
                   <div>
-                    <div className="text-[10px] text-ink-tertiary">Emergency Note:</div>
-                    <div className="text-ink-secondary">If chest pain lasts &gt; 10 minutes, dial 108 immediately.</div>
+                    <div className="text-ink-tertiary">Digitally Signed via NDHM / ABDM Health Gateway</div>
+                    <div className="font-mono text-ink-secondary">SHA-256: 88f2a9e...4c82b1 (Verified)</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-serif italic text-[14px] text-burgundy-800 font-bold">Dr. Ananya Rao</div>
-                    <div className="text-[9.5px] font-mono text-emerald-700">Digitally Signed · MMC-2014-08-3921</div>
-                    <div className="text-[9px] text-ink-tertiary">12 Aug 2026, 10:14 AM IST</div>
+                    <div className="font-serif italic font-bold text-burgundy-800 text-[14px]">Dr. Ananya Rao</div>
+                    <div className="text-[10px] text-ink-tertiary">Consultant Cardiologist · MMC Reg 3921</div>
                   </div>
                 </div>
               </div>
 
               {/* Modal Footer */}
-              <div className="p-4 bg-bg border-t border-[rgba(124,45,45,0.08)] flex justify-end gap-2">
+              <div className="p-4 bg-bg border-t border-[rgba(124,45,45,0.1)] flex justify-end gap-2">
                 <button
                   onClick={() => setSelectedRxDoc(null)}
-                  className="px-4 py-2 bg-burgundy-700 text-white font-bold text-[12px] rounded-[8px] shadow-2xs"
+                  className="px-4 py-2 bg-burgundy-700 hover:bg-burgundy-800 text-white text-[12px] font-bold rounded-[8px]"
                 >
                   Close Document
                 </button>
