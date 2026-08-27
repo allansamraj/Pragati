@@ -266,34 +266,34 @@ export function ChatPanel({
   return (
     <div className="flex flex-col h-full bg-[#FAF7F5] text-ink-primary select-text relative">
       {/* ── HEADER ── */}
-      <header className="bg-[#170E0D] border-b border-white/10 text-white p-3.5 px-4 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <header className="bg-[#170E0D] border-b border-white/10 text-white p-3 px-3.5 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
           <div className="w-8 h-8 rounded-[8px] bg-burgundy-700/80 border border-white/20 flex items-center justify-center flex-shrink-0 shadow-sm">
             {getRoleIcon()}
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-[14px] text-white tracking-tight leading-none">
+              <span className="font-extrabold text-[13.5px] text-white tracking-tight leading-none">
                 {config.assistantName}
               </span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             </div>
-            <div className="text-[10px] text-slate-300 truncate mt-0.5 font-medium flex items-center gap-1">
-              <span className="uppercase tracking-wider font-bold text-rose-300">
+            <div className="flex items-center gap-1.5 mt-0.5 text-[10px]">
+              <span className="uppercase tracking-wider font-extrabold text-rose-300 bg-white/10 px-1.5 py-0.2 rounded">
                 {config.badgeLabel}
               </span>
               <span className="text-white/30">·</span>
-              <span className="text-white/60">Voice Assistant Ready</span>
+              <span className="text-emerald-400/90 font-medium">Voice Enabled</span>
             </div>
           </div>
         </div>
 
         {/* Header Actions: TTS Speaker + Language Picker + Clear + Close */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0">
           <button
             type="button"
             onClick={toggleTTS}
-            className={`w-7 h-7 rounded-[6px] flex items-center justify-center transition-colors cursor-pointer ${
+            className={`w-6.5 h-6.5 rounded-[5px] flex items-center justify-center transition-colors cursor-pointer ${
               ttsEnabled
                 ? "bg-rose-600 text-white shadow-xs"
                 : "hover:bg-white/10 text-white/60 hover:text-white"
@@ -309,32 +309,32 @@ export function ChatPanel({
               value={language}
               onChange={(e) => setLanguage(e.target.value as AssistantLanguage)}
               aria-label="Select Assistant Language"
-              className="bg-white/10 hover:bg-white/15 border border-white/15 rounded-[6px] text-white text-[11px] font-semibold py-1 px-2 focus:outline-none focus:ring-1 focus:ring-rose-400 cursor-pointer appearance-none pr-5"
+              className="bg-white/10 hover:bg-white/15 border border-white/15 rounded-[5px] text-white text-[10.5px] font-semibold py-0.5 px-1.5 focus:outline-none focus:ring-1 focus:ring-rose-400 cursor-pointer appearance-none pr-4.5"
             >
               <option value="en" className="bg-[#170E0D] text-white">EN</option>
               <option value="mr" className="bg-[#170E0D] text-white">मराठी</option>
               <option value="hi" className="bg-[#170E0D] text-white">हिन्दी</option>
               <option value="ta" className="bg-[#170E0D] text-white">தமிழ்</option>
             </select>
-            <Globe className="w-3 h-3 text-white/60 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Globe className="w-2.5 h-2.5 text-white/60 absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
           <button
             type="button"
             onClick={handleClear}
-            className="w-7 h-7 rounded-[6px] hover:bg-white/10 text-white/60 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="w-6.5 h-6.5 rounded-[5px] hover:bg-white/10 text-white/60 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
             title="Reset conversation"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
+            <RefreshCw className="w-3 h-3" />
           </button>
 
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 rounded-[6px] hover:bg-white/10 text-white/80 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="w-6.5 h-6.5 rounded-[5px] hover:bg-white/10 text-white/80 hover:text-white flex items-center justify-center transition-colors cursor-pointer ml-0.5"
             title="Close Assistant"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       </header>

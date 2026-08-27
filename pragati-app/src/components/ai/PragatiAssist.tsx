@@ -95,9 +95,9 @@ export function PragatiAssist() {
         )}
       </div>
 
-      {/* ── CHAT PANEL (Neatly Sized & Proportioned) ── */}
+      {/* ── CHAT PANEL (Neatly Sized 415px with optimal alignment) ── */}
       {isOpen && (
-        <div className="fixed inset-0 sm:inset-auto sm:bottom-6 sm:right-6 z-50 w-full sm:w-[390px] h-full sm:h-[580px] sm:max-h-[calc(100vh-90px)] shadow-2xl rounded-none sm:rounded-[18px] overflow-hidden border border-[rgba(124,45,45,0.18)] flex flex-col bg-surface animate-in fade-in slide-in-from-bottom-4 duration-200">
+        <div className="fixed inset-0 sm:inset-auto sm:bottom-5 sm:right-5 z-50 w-full sm:w-[415px] h-full sm:h-[600px] sm:max-h-[calc(100vh-80px)] shadow-2xl rounded-none sm:rounded-[18px] overflow-hidden border border-[rgba(124,45,45,0.18)] flex flex-col bg-surface animate-in fade-in slide-in-from-bottom-4 duration-200">
           <ChatPanel role={activeRole} onClose={() => setIsOpen(false)} />
         </div>
       )}
