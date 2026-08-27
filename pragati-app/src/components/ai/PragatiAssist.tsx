@@ -78,7 +78,7 @@ export function PragatiAssist() {
           <button
             type="button"
             onClick={() => setIsOpen(true)}
-            className={`group flex items-center gap-2.5 px-4 py-3 rounded-full text-white font-bold shadow-xl hover:shadow-2xl transition-all duration-200 border ${theme.btnBg} ${theme.border} ring-4 ${theme.ring} cursor-pointer hover:scale-105 active:scale-95`}
+            className={`group flex items-center gap-2 px-3.5 py-2.5 rounded-full text-white font-bold shadow-xl hover:shadow-2xl transition-all duration-200 border ${theme.btnBg} ${theme.border} ring-4 ${theme.ring} cursor-pointer hover:scale-105 active:scale-95`}
             aria-label="Open PRAGATI Role-Aware AI Assistant"
           >
             <div className="relative">
@@ -86,8 +86,8 @@ export function PragatiAssist() {
               <span className="w-2 h-2 rounded-full bg-emerald-400 border-2 border-burgundy-900 absolute -top-0.5 -right-0.5 animate-pulse" />
             </div>
             <div className="text-left leading-tight hidden sm:block">
-              <span className="text-[12.5px] block font-extrabold tracking-tight">PRAGATI Assist</span>
-              <span className="text-[9.5px] text-white/80 block uppercase tracking-wider font-semibold">
+              <span className="text-[12px] block font-extrabold tracking-tight">PRAGATI Assist</span>
+              <span className="text-[9px] text-white/80 block uppercase tracking-wider font-semibold">
                 {theme.label}
               </span>
             </div>
@@ -95,9 +95,9 @@ export function PragatiAssist() {
         )}
       </div>
 
-      {/* ── CHAT PANEL (Desktop Overlay / Mobile Full-Screen) ── */}
+      {/* ── CHAT PANEL (Neatly Sized & Proportioned) ── */}
       {isOpen && (
-        <div className="fixed inset-0 sm:inset-auto sm:bottom-5 sm:right-5 z-50 w-full sm:w-[440px] h-full sm:h-[680px] sm:max-h-[calc(100vh-40px)] shadow-2xl rounded-none sm:rounded-[20px] overflow-hidden border border-[rgba(124,45,45,0.18)] flex flex-col bg-surface animate-in fade-in slide-in-from-bottom-5 duration-200">
+        <div className="fixed inset-0 sm:inset-auto sm:bottom-6 sm:right-6 z-50 w-full sm:w-[390px] h-full sm:h-[580px] sm:max-h-[calc(100vh-90px)] shadow-2xl rounded-none sm:rounded-[18px] overflow-hidden border border-[rgba(124,45,45,0.18)] flex flex-col bg-surface animate-in fade-in slide-in-from-bottom-4 duration-200">
           <ChatPanel role={activeRole} onClose={() => setIsOpen(false)} />
         </div>
       )}

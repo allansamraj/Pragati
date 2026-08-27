@@ -64,9 +64,9 @@ export function Message({
       </div>
 
       {/* Message Content */}
-      <div className={`max-w-[85%] sm:max-w-[80%] ${isUser ? "text-right" : "text-left"}`}>
+      <div className={`max-w-[88%] sm:max-w-[84%] ${isUser ? "text-right" : "text-left"}`}>
         <div
-          className={`p-3.5 rounded-[14px] text-[13px] leading-relaxed shadow-2xs ${
+          className={`p-3 rounded-[12px] text-[12.5px] leading-relaxed shadow-2xs ${
             isUser
               ? "bg-burgundy-700 text-white font-medium rounded-tr-xs"
               : "bg-surface border border-[rgba(124,45,45,0.1)] text-ink-primary rounded-tl-xs"
