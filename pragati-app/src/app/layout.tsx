@@ -1,0 +1,50 @@
+import type { Metadata } from "next";
+import "./globals.css";
+import { LanguageProvider } from "@/lib/i18n";
+import { ConnectivityProvider } from "@/lib/connectivity/ConnectivityContext";
+import { TopBar } from "@/components/shared/TopBar";
+import { PragatiAssist } from "@/components/ai/PragatiAssist";
+
+export const metadata: Metadata = {
+  title: "PRAGATI — Public Healthcare Access & Continuity Platform",
+  description:
+    "PRAGATI connects patients in rural and underserved areas with the right public healthcare facility based on clinical need, specialist availability, diagnostics, and current OPD capacity.",
+  keywords: [
+    "public healthcare India",
+    "rural healthcare access",
+    "Maharashtra public health",
+    "eSanjeevani teleconsultation",
+    "OPD live queue tracking",
+    "ABHA digital health records",
+  ],
+  openGraph: {
+    title: "PRAGATI — Find Available Care Before You Travel",
+    description: "Don't just find a hospital. Find available care.",
+    type: "website",
+    locale: "en_IN",
+  },
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="en-IN" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body>
+        <LanguageProvider>
+          <ConnectivityProvider>
+            <TopBar />
+            {children}
+            <PragatiAssist />
+          </ConnectivityProvider>
+        </LanguageProvider>
+      </body>
+    </html>
+  );
+}
