@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { sessionService } from "@/lib/auth/sessionService";
 import { ProfileDropdown } from "@/components/shared/ProfileDropdown";
+import { RoleLocationHeader } from "@/components/layout/RoleLocationHeader";
 import { useLanguage } from "@/lib/i18n";
 import {
   LayoutDashboard, Search, Ticket, FileText, Pill,
@@ -140,7 +141,7 @@ export default function PatientLayout({ children }: { children: React.ReactNode 
       {/* ── DESKTOP MAIN ── */}
       <div style={{ marginLeft: collapsed ? 64 : 240 }} className="hidden lg:block min-h-screen transition-all duration-200">
         <header className="sticky top-0 z-20 bg-surface/95 backdrop-blur-sm border-b border-[rgba(124,45,45,0.07)] h-14 flex items-center px-6 justify-between">
-          <div />
+          <RoleLocationHeader role="patient" />
           <ProfileDropdown />
         </header>
         <div className="p-6 max-w-[1200px]">{children}</div>

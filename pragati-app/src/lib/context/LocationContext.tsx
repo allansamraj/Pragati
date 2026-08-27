@@ -1,6 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   getCurrentLocation,
   reverseGeocode,
@@ -10,18 +17,37 @@ import {
   calculateTravelMinutes,
   GeocodedLocation,
   UserCoordinates,
+  PatientLocation,
+  DoctorLocation,
+  ProviderLocation,
+  GovernmentLocation,
+  DEFAULT_DOCTOR_LOCATION,
+  DEFAULT_PROVIDER_LOCATION,
+  DEFAULT_GOVERNMENT_LOCATION,
 } from "@/lib/services/locationService";
 import {
   getNearbyFacilities,
   NearbySearchResult,
 } from "@/lib/services/facilityService";
 import { Facility } from "@/data/facilities";
+import { UserRole } from "@/lib/auth/types";
 
 export type LocationSource = "CURRENT_GPS" | "MANUAL" | "CACHED";
 export type LocationStatus = "idle" | "loading" | "granted" | "denied" | "error";
 
+export interface RoleLocationSummary {
+  role: UserRole;
+  primaryLabel: string;
+  secondaryLabel: string;
+  badgeLabel: string;
+  lat: number;
+  lng: number;
+  sourceType: "GPS" | "REGISTERED_FACILITY" | "ADMINISTRATIVE_REGION";
+  canChangeLocation: boolean;
+}
+
 export interface LocationContextValue {
-  // Coordinates & Address
+  // ── 1. PATIENT LOCATION (GPS / User Selected) ──
   lat: number;
   lng: number;
   locality: string;
@@ -36,39 +62,64 @@ export interface LocationContextValue {
   isRefreshing: boolean;
   isOffline: boolean;
   lastUpdated: string;
+  patientLocation: PatientLocation;
 
-  // Nearby Healthcare Network
+  // Nearby Healthcare Network for Patient
   nearbyFacilities: Facility[];
   searchRadiusKm: number;
   isExpandedRadius: boolean;
   totalInRadius: number;
 
-  // Actions
+  // Patient Actions
   refreshGPS: (isUserTriggered?: boolean) => Promise<void>;
   setManualLocation: (query: string) => Promise<void>;
   clearManualLocation: () => Promise<void>;
+
+  // ── 2. DOCTOR REGISTERED FACILITY LOCATION ──
+  doctorLocation: DoctorLocation;
+  setDoctorRegisteredFacility: (facilityId: string) => void;
+
+  // ── 3. PROVIDER REGISTERED BUSINESS LOCATION ──
+  providerLocation: ProviderLocation;
+  setProviderRegisteredFacility: (facilityId: string) => void;
+
+  // ── 4. GOVERNMENT ADMINISTRATIVE REGION ──
+  governmentLocation: GovernmentLocation;
+  setGovernmentState: (state: string) => void;
+  setGovernmentDistrict: (district: string) => void;
+  setGovernmentBlock: (block: string) => void;
+  setGovernmentFacility: (facilityId: string) => void;
+
+  // ── 5. UNIFIED ROLE RESOLVER & GEOSPATIAL HELPERS ──
+  getRoleLocationSummary: (role: UserRole) => RoleLocationSummary;
   getDistanceTo: (targetLat: number, targetLng: number) => { distanceKm: number; travelMinutes: number };
   getDirectionsUrl: (targetLat: number, targetLng: number, targetName?: string) => string;
-  searchNearby: (needQuery?: string, specialty?: string, isEmergency?: boolean) => Promise<NearbySearchResult>;
+  searchNearby: (
+    needQuery?: string,
+    specialty?: string,
+    isEmergency?: boolean,
+    facilityType?: "ALL" | "GOVERNMENT" | "PRIVATE"
+  ) => Promise<NearbySearchResult>;
 }
 
 const LocationContext = createContext<LocationContextValue | null>(null);
 
-const DEFAULT_FALLBACK_LOCATION: GeocodedLocation = {
-  lat: 21.3734,
-  lng: 74.2404,
-  displayName: "Nandurbar, Maharashtra",
-  locality: "Nandurbar, Maharashtra",
-  city: "Nandurbar",
-  district: "Nandurbar",
-  state: "Maharashtra",
-  pincode: "425412",
+const DEFAULT_PATIENT_FALLBACK: GeocodedLocation = {
+  lat: 12.8681,
+  lng: 80.2454,
+  displayName: "Uthandi, Chennai",
+  locality: "Uthandi, Chennai",
+  city: "Chennai",
+  district: "Chennai",
+  state: "Tamil Nadu",
+  pincode: "600119",
   isManual: false,
 };
 
 export function LocationProvider({ children }: { children: React.ReactNode }) {
-  const [currentLocation, setCurrentLocation] = useState<GeocodedLocation>(DEFAULT_FALLBACK_LOCATION);
-  const [source, setSource] = useState<LocationSource>("CACHED");
+  // ── 1. PATIENT STATE ──
+  const [patientLoc, setPatientLoc] = useState<GeocodedLocation>(DEFAULT_PATIENT_FALLBACK);
+  const [source, setSource] = useState<LocationSource>("CURRENT_GPS");
   const [status, setStatus] = useState<LocationStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -79,6 +130,15 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
   const [searchRadiusKm, setSearchRadiusKm] = useState<number>(10);
   const [isExpandedRadius, setIsExpandedRadius] = useState<boolean>(false);
   const [totalInRadius, setTotalInRadius] = useState<number>(0);
+
+  // ── 2. DOCTOR STATE ──
+  const [doctorLoc, setDoctorLoc] = useState<DoctorLocation>(DEFAULT_DOCTOR_LOCATION);
+
+  // ── 3. PROVIDER STATE ──
+  const [providerLoc, setProviderLoc] = useState<ProviderLocation>(DEFAULT_PROVIDER_LOCATION);
+
+  // ── 4. GOVERNMENT STATE ──
+  const [govLoc, setGovLoc] = useState<GovernmentLocation>(DEFAULT_GOVERNMENT_LOCATION);
 
   // Monitor online / offline state
   useEffect(() => {
@@ -96,168 +156,324 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Update nearby facilities whenever location changes
+  // Update nearby facilities whenever patient location changes
   const updateNearbyFacilities = useCallback(async (loc: GeocodedLocation) => {
     try {
-      const res = await getNearbyFacilities({
+      const result = await getNearbyFacilities({
         lat: loc.lat,
         lng: loc.lng,
         locality: loc.locality,
+        initialRadiusKm: 10,
+        facilityType: "ALL",
       });
-      setNearbyFacilities(res.facilities);
-      setSearchRadiusKm(res.searchRadiusKm);
-      setIsExpandedRadius(res.isExpandedRadius);
-      setTotalInRadius(res.totalInRadius);
+      setNearbyFacilities(result.facilities);
+      setSearchRadiusKm(result.searchRadiusKm);
+      setIsExpandedRadius(result.isExpandedRadius);
+      setTotalInRadius(result.totalInRadius);
     } catch (err) {
-      console.warn("Failed to load nearby facilities:", err);
+      console.error("Failed to update nearby facilities for location:", err);
     }
   }, []);
 
-  // Refresh GPS location
-  const refreshGPS = useCallback(async (isUserTriggered = false) => {
-    if (isUserTriggered) {
+  // Refresh Patient GPS
+  const refreshGPS = useCallback(
+    async (isUserTriggered = false) => {
+      if (typeof window === "undefined") return;
+
       setIsRefreshing(true);
-    } else {
-      setStatus("loading");
-    }
-    setError(null);
-
-    try {
-      const coords = await getCurrentLocation();
-      const geocoded = await reverseGeocode(coords.lat, coords.lng);
-      setCurrentLocation(geocoded);
-      setSource("CURRENT_GPS");
-      setStatus("granted");
-      setLastUpdated(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }));
-      await updateNearbyFacilities(geocoded);
-    } catch (err: any) {
-      console.warn("Location error:", err);
-      setStatus("error");
-      setError(err?.message || "Unable to retrieve device GPS location.");
-      // Keep cached location active
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [updateNearbyFacilities]);
-
-  // Initial load: request location or check permissions
-  useEffect(() => {
-    const init = async () => {
-      setLastUpdated(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }));
-      const perm = await checkLocationPermission();
-      if (perm === "granted") {
-        refreshGPS(false);
-      } else {
-        // Attempt initial request gracefully
-        refreshGPS(false);
+      if (isUserTriggered) {
+        setStatus("loading");
       }
-    };
-    init();
+      setError(null);
+
+      try {
+        const coords = await getCurrentLocation();
+        const geocoded = await reverseGeocode(coords.lat, coords.lng);
+        setPatientLoc(geocoded);
+        setSource("CURRENT_GPS");
+        setStatus("granted");
+        setLastUpdated(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }));
+        await updateNearbyFacilities(geocoded);
+      } catch (err: any) {
+        console.warn("GPS lookup failed:", err.message);
+        setStatus("denied");
+        setError(err.message || "Location access unavailable.");
+
+        // Keep last known or fallback to Uthandi, Chennai
+        setSource("CACHED");
+        setLastUpdated(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }));
+        await updateNearbyFacilities(DEFAULT_PATIENT_FALLBACK);
+      } finally {
+        setIsRefreshing(false);
+      }
+    },
+    [updateNearbyFacilities]
+  );
+
+  // Auto-request location on initial load
+  useEffect(() => {
+    refreshGPS(false);
   }, [refreshGPS]);
 
-  // Set manual location
-  const setManualLocation = useCallback(async (query: string) => {
-    setIsRefreshing(true);
-    setError(null);
-    try {
-      const geocoded = await geocodeManualLocation(query);
-      setCurrentLocation(geocoded);
-      setSource("MANUAL");
-      setStatus("granted");
-      setLastUpdated(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }));
-      await updateNearbyFacilities(geocoded);
-    } catch (err: any) {
-      setError(err?.message || "Location search failed.");
-      throw err;
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [updateNearbyFacilities]);
+  // Set Manual Location for Patient
+  const setManualLocation = useCallback(
+    async (query: string) => {
+      setIsRefreshing(true);
+      setError(null);
+      try {
+        const geocoded = await geocodeManualLocation(query);
+        setPatientLoc(geocoded);
+        setSource("MANUAL");
+        setStatus("granted");
+        setLastUpdated(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }));
+        await updateNearbyFacilities(geocoded);
+      } catch (err: any) {
+        setError(err?.message || "Location search failed.");
+        throw err;
+      } finally {
+        setIsRefreshing(false);
+      }
+    },
+    [updateNearbyFacilities]
+  );
 
   // Clear manual location and revert to GPS
   const clearManualLocation = useCallback(async () => {
     await refreshGPS(true);
   }, [refreshGPS]);
 
+  // Doctor Action
+  const setDoctorRegisteredFacility = useCallback((facilityId: string) => {
+    // In future: look up facility by ID
+    setDoctorLoc((prev) => ({
+      ...prev,
+      registeredFacilityId: facilityId,
+    }));
+  }, []);
+
+  // Provider Action
+  const setProviderRegisteredFacility = useCallback((facilityId: string) => {
+    setProviderLoc((prev) => ({
+      ...prev,
+      registeredFacilityId: facilityId,
+    }));
+  }, []);
+
+  // Government Actions
+  const setGovernmentState = useCallback((state: string) => {
+    setGovLoc((prev) => ({ ...prev, state }));
+  }, []);
+
+  const setGovernmentDistrict = useCallback((district: string) => {
+    setGovLoc((prev) => ({ ...prev, district }));
+  }, []);
+
+  const setGovernmentBlock = useCallback((block: string) => {
+    setGovLoc((prev) => ({ ...prev, block }));
+  }, []);
+
+  const setGovernmentFacility = useCallback((facilityId: string) => {
+    setGovLoc((prev) => ({ ...prev, facilityId }));
+  }, []);
+
   // Calculate distance from patient's current location to target coordinates
-  const getDistanceTo = useCallback((targetLat: number, targetLng: number) => {
-    const dist = calculateDistance(currentLocation.lat, currentLocation.lng, targetLat, targetLng);
-    const travel = calculateTravelMinutes(dist);
-    return { distanceKm: dist, travelMinutes: travel };
-  }, [currentLocation]);
+  const getDistanceTo = useCallback(
+    (targetLat: number, targetLng: number) => {
+      const dist = calculateDistance(patientLoc.lat, patientLoc.lng, targetLat, targetLng);
+      const travel = calculateTravelMinutes(dist);
+      return { distanceKm: dist, travelMinutes: travel };
+    },
+    [patientLoc]
+  );
 
   // Generate Google Maps navigation URL from patient location to target
-  const getDirectionsUrl = useCallback((targetLat: number, targetLng: number, targetName?: string) => {
-    const origin = `${currentLocation.lat},${currentLocation.lng}`;
-    const destination = `${targetLat},${targetLng}`;
-    const label = targetName ? ` (${encodeURIComponent(targetName)})` : "";
-    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${label}&travelmode=driving`;
-  }, [currentLocation]);
+  const getDirectionsUrl = useCallback(
+    (targetLat: number, targetLng: number, targetName?: string) => {
+      const origin = `${patientLoc.lat},${patientLoc.lng}`;
+      const destination = `${targetLat},${targetLng}`;
+      const label = targetName ? ` (${encodeURIComponent(targetName)})` : "";
+      return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${label}&travelmode=driving`;
+    },
+    [patientLoc]
+  );
 
   // Dynamic search with clinical filter
-  const searchNearby = useCallback(async (needQuery?: string, specialty?: string, isEmergency?: boolean) => {
-    return getNearbyFacilities({
-      lat: currentLocation.lat,
-      lng: currentLocation.lng,
-      locality: currentLocation.locality,
-      needQuery,
-      specialty,
-      isEmergency,
-    });
-  }, [currentLocation]);
+  const searchNearby = useCallback(
+    async (
+      needQuery?: string,
+      specialty?: string,
+      isEmergency?: boolean,
+      facilityType: "ALL" | "GOVERNMENT" | "PRIVATE" = "ALL"
+    ) => {
+      return getNearbyFacilities({
+        lat: patientLoc.lat,
+        lng: patientLoc.lng,
+        locality: patientLoc.locality,
+        needQuery,
+        specialty,
+        isEmergency,
+        facilityType,
+      });
+    },
+    [patientLoc]
+  );
 
-  const value: LocationContextValue = useMemo(() => ({
-    lat: currentLocation.lat,
-    lng: currentLocation.lng,
-    locality: currentLocation.locality,
-    city: currentLocation.city,
-    district: currentLocation.district,
-    state: currentLocation.state,
-    pincode: currentLocation.pincode,
-    displayName: currentLocation.displayName,
-    source,
-    status,
-    error,
-    isRefreshing,
-    isOffline,
-    lastUpdated,
-    nearbyFacilities,
-    searchRadiusKm,
-    isExpandedRadius,
-    totalInRadius,
-    refreshGPS,
-    setManualLocation,
-    clearManualLocation,
-    getDistanceTo,
-    getDirectionsUrl,
-    searchNearby,
-  }), [
-    currentLocation,
-    source,
-    status,
-    error,
-    isRefreshing,
-    isOffline,
-    lastUpdated,
-    nearbyFacilities,
-    searchRadiusKm,
-    isExpandedRadius,
-    totalInRadius,
-    refreshGPS,
-    setManualLocation,
-    clearManualLocation,
-    getDistanceTo,
-    getDirectionsUrl,
-    searchNearby,
-  ]);
+  // ── UNIFIED ROLE RESOLVER ──
+  const getRoleLocationSummary = useCallback(
+    (role: UserRole): RoleLocationSummary => {
+      switch (role) {
+        case "doctor":
+          return {
+            role: "doctor",
+            primaryLabel: doctorLoc.facilityName,
+            secondaryLabel: `${doctorLoc.district}, ${doctorLoc.state} · ${doctorLoc.department}`,
+            badgeLabel: `${doctorLoc.room} (${doctorLoc.counter})`,
+            lat: doctorLoc.lat,
+            lng: doctorLoc.lng,
+            sourceType: "REGISTERED_FACILITY",
+            canChangeLocation: false,
+          };
+        case "provider":
+          return {
+            role: "provider",
+            primaryLabel: providerLoc.facilityName,
+            secondaryLabel: `${providerLoc.district}, ${providerLoc.state} · Service Radius: ${providerLoc.serviceRadiusKm} km`,
+            badgeLabel: "Registered Business Location",
+            lat: providerLoc.lat,
+            lng: providerLoc.lng,
+            sourceType: "REGISTERED_FACILITY",
+            canChangeLocation: false,
+          };
+        case "government":
+          return {
+            role: "government",
+            primaryLabel: `${govLoc.state} State Health Command`,
+            secondaryLabel: `District: ${govLoc.district} · Block: ${govLoc.block}`,
+            badgeLabel: "Administrative Region",
+            lat: 19.7515,
+            lng: 75.7139,
+            sourceType: "ADMINISTRATIVE_REGION",
+            canChangeLocation: true,
+          };
+        case "patient":
+        default:
+          return {
+            role: "patient",
+            primaryLabel: patientLoc.locality,
+            secondaryLabel: patientLoc.displayName,
+            badgeLabel: source === "CURRENT_GPS" ? "GPS Detected" : "Manually Selected",
+            lat: patientLoc.lat,
+            lng: patientLoc.lng,
+            sourceType: "GPS",
+            canChangeLocation: true,
+          };
+      }
+    },
+    [doctorLoc, providerLoc, govLoc, patientLoc, source]
+  );
+
+  const patientLocationData: PatientLocation = useMemo(
+    () => ({
+      lat: patientLoc.lat,
+      lng: patientLoc.lng,
+      locality: patientLoc.locality,
+      city: patientLoc.city,
+      district: patientLoc.district,
+      state: patientLoc.state,
+      pincode: patientLoc.pincode,
+      displayName: patientLoc.displayName,
+      source,
+      status,
+      lastUpdated,
+    }),
+    [patientLoc, source, status, lastUpdated]
+  );
+
+  const value: LocationContextValue = useMemo(
+    () => ({
+      lat: patientLoc.lat,
+      lng: patientLoc.lng,
+      locality: patientLoc.locality,
+      city: patientLoc.city,
+      district: patientLoc.district,
+      state: patientLoc.state,
+      pincode: patientLoc.pincode,
+      displayName: patientLoc.displayName,
+      source,
+      status,
+      error,
+      isRefreshing,
+      isOffline,
+      lastUpdated,
+      patientLocation: patientLocationData,
+
+      nearbyFacilities,
+      searchRadiusKm,
+      isExpandedRadius,
+      totalInRadius,
+
+      refreshGPS,
+      setManualLocation,
+      clearManualLocation,
+
+      doctorLocation: doctorLoc,
+      setDoctorRegisteredFacility,
+
+      providerLocation: providerLoc,
+      setProviderRegisteredFacility,
+
+      governmentLocation: govLoc,
+      setGovernmentState,
+      setGovernmentDistrict,
+      setGovernmentBlock,
+      setGovernmentFacility,
+
+      getRoleLocationSummary,
+      getDistanceTo,
+      getDirectionsUrl,
+      searchNearby,
+    }),
+    [
+      patientLoc,
+      source,
+      status,
+      error,
+      isRefreshing,
+      isOffline,
+      lastUpdated,
+      patientLocationData,
+      nearbyFacilities,
+      searchRadiusKm,
+      isExpandedRadius,
+      totalInRadius,
+      refreshGPS,
+      setManualLocation,
+      clearManualLocation,
+      doctorLoc,
+      setDoctorRegisteredFacility,
+      providerLoc,
+      setProviderRegisteredFacility,
+      govLoc,
+      setGovernmentState,
+      setGovernmentDistrict,
+      setGovernmentBlock,
+      setGovernmentFacility,
+      getRoleLocationSummary,
+      getDistanceTo,
+      getDirectionsUrl,
+      searchNearby,
+    ]
+  );
 
   return <LocationContext.Provider value={value}>{children}</LocationContext.Provider>;
 }
 
-export function useLocationContext(): LocationContextValue {
+export function useLocation() {
   const context = useContext(LocationContext);
   if (!context) {
-    throw new Error("useLocationContext must be used within a LocationProvider");
+    throw new Error("useLocation must be used within a LocationProvider");
   }
   return context;
 }
+
+export const useLocationContext = useLocation;

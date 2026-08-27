@@ -15,7 +15,15 @@ export function TopBar() {
   const pathname = usePathname();
   const { language, setLanguage, t } = useLanguage();
   const { mode, setMode } = useConnectivity();
-  const { locality, source, refreshGPS, isRefreshing } = useLocationContext();
+  const {
+    locality,
+    source,
+    refreshGPS,
+    isRefreshing,
+    doctorLocation,
+    providerLocation,
+    governmentLocation,
+  } = useLocationContext();
 
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [connMenuOpen, setConnMenuOpen] = useState(false);
@@ -31,6 +39,34 @@ export function TopBar() {
   const isDoctor = pathname?.startsWith("/doctor") || pathname === "/login/doctor";
   const isProvider = pathname?.startsWith("/provider") || pathname === "/login/provider";
   const isGov = pathname?.startsWith("/government") || pathname === "/login/government";
+
+  const currentRoleLocation = isDoctor
+    ? {
+        label: doctorLocation.facilityName,
+        sub: "Registered Facility · MH",
+        icon: Building2,
+        isClickable: false,
+      }
+    : isProvider
+    ? {
+        label: providerLocation.facilityName,
+        sub: "Registered Business · MH",
+        icon: Pill,
+        isClickable: false,
+      }
+    : isGov
+    ? {
+        label: `${governmentLocation.state} (${governmentLocation.district})`,
+        sub: "Administrative Region",
+        icon: Building2,
+        isClickable: false,
+      }
+    : {
+        label: locality,
+        sub: source === "CURRENT_GPS" ? "GPS Detected" : "Manual Location",
+        icon: MapPin,
+        isClickable: true,
+      };
 
   return (
     <aside aria-label="System status and workspace selector" className="bg-gradient-to-r from-[#170E0D] via-[#1F1210] to-[#170E0D] text-white/90 border-b border-white/10 text-[11px] font-medium py-1.5 px-4 sm:px-6 relative z-50 shadow-xs">
@@ -104,16 +140,24 @@ export function TopBar() {
 
         {/* Right: Global Location Indicator + Connectivity + Language */}
         <div className="flex items-center gap-2.5 ml-auto">
-          {/* Subtle Global Location Pill */}
-          <button
-            onClick={() => refreshGPS(true)}
-            title={`Location: ${locality} (${source === "CURRENT_GPS" ? "Device GPS" : "Manual Location"}). Click to refresh.`}
-            className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-[7px] bg-white/5 hover:bg-white/10 border border-white/15 text-white/90 text-[11px] transition-colors cursor-pointer"
+          {/* Role-Aware Global Location Pill */}
+          <div
+            onClick={() => {
+              if (currentRoleLocation.isClickable) {
+                refreshGPS(true);
+              }
+            }}
+            title={`Active Context: ${currentRoleLocation.label} (${currentRoleLocation.sub})`}
+            className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-[7px] bg-white/5 border border-white/15 text-white/90 text-[11px] transition-colors ${
+              currentRoleLocation.isClickable ? "hover:bg-white/10 cursor-pointer" : ""
+            }`}
           >
-            <MapPin className="w-3 h-3 text-rose-400 flex-shrink-0" />
-            <span className="max-w-[130px] truncate">{locality}</span>
-            <RefreshCw className={`w-2.5 h-2.5 text-white/50 ${isRefreshing ? "animate-spin" : ""}`} />
-          </button>
+            <currentRoleLocation.icon className="w-3 h-3 text-rose-400 flex-shrink-0" />
+            <span className="max-w-[170px] truncate font-medium">{currentRoleLocation.label}</span>
+            {currentRoleLocation.isClickable && (
+              <RefreshCw className={`w-2.5 h-2.5 text-white/50 ${isRefreshing ? "animate-spin" : ""}`} />
+            )}
+          </div>
 
           {/* Connectivity / 2G Offline Simulator */}
           <div className="relative">

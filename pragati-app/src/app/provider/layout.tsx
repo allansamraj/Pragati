@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { sessionService } from "@/lib/auth/sessionService";
 import { ProfileDropdown } from "@/components/shared/ProfileDropdown";
+import { RoleLocationHeader } from "@/components/layout/RoleLocationHeader";
 import {
   LayoutDashboard, Pill, FlaskConical, Package,
   Share2, BarChart2, Settings, ChevronLeft,
@@ -121,11 +122,7 @@ export default function ProviderLayout({ children }: { children: React.ReactNode
       >
         {/* Top Header */}
         <header className="h-14 border-b border-[rgba(124,45,45,0.08)] bg-surface/90 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-20">
-          <div className="flex items-center gap-2.5">
-            <span className="text-[13px] font-bold text-ink-primary">Hospital Pharmacy &amp; Resource Operations</span>
-            <span className="text-ink-tertiary">|</span>
-            <span className="text-[11px] text-ink-secondary">Nandurbar District Civil Hospital</span>
-          </div>
+          <RoleLocationHeader role="provider" />
 
           <div className="flex items-center gap-3">
             <Link

@@ -1,5 +1,8 @@
-// ─── PRAGATI LOCATION SERVICE ───────────────────────────────────────────────
-// Geospatial location retrieval, native permissions, reverse geocoding, and Haversine distance.
+// ─── PRAGATI GLOBAL LOCATION SERVICE ─────────────────────────────────────────
+// Multi-role geospatial location retrieval, registered facility resolution,
+// administrative hierarchies, reverse geocoding, and Haversine distance engine.
+
+import { DEMO_FACILITIES, Facility } from "@/data/facilities";
 
 export interface UserCoordinates {
   lat: number;
@@ -20,8 +23,132 @@ export interface GeocodedLocation {
   isManual?: boolean;
 }
 
+// ── 1. PATIENT LOCATION SCHEMA ──
+export interface PatientLocation {
+  lat: number;
+  lng: number;
+  accuracy?: number;
+  locality: string;
+  city?: string;
+  district?: string;
+  state?: string;
+  pincode?: string;
+  displayName: string;
+  source: "CURRENT_GPS" | "MANUAL" | "CACHED";
+  status: "idle" | "loading" | "granted" | "denied" | "error";
+  lastUpdated: string;
+}
+
+// ── 2. DOCTOR REGISTERED FACILITY LOCATION SCHEMA ──
+export interface DoctorLocation {
+  doctorId: string;
+  doctorName: string;
+  registeredFacilityId: string;
+  facilityName: string;
+  facilityType: string;
+  department: string;
+  room: string;
+  counter: string;
+  address: string;
+  district: string;
+  state: string;
+  lat: number;
+  lng: number;
+  currentPersonalLocation?: UserCoordinates;
+}
+
+// ── 3. PHARMACY / PROVIDER REGISTERED FACILITY LOCATION SCHEMA ──
+export interface ProviderLocation {
+  providerId: string;
+  providerName: string;
+  registeredFacilityId: string;
+  facilityName: string;
+  facilityType: "PHARMACY" | "DIAGNOSTIC_CENTER" | "CLINIC" | "HOSPITAL";
+  department: string;
+  address: string;
+  district: string;
+  state: string;
+  lat: number;
+  lng: number;
+  serviceRadiusKm: number;
+}
+
+// ── 4. GOVERNMENT ADMINISTRATIVE LOCATION CONTEXT SCHEMA ──
+export interface GovernmentLocation {
+  state: string;
+  district: string;
+  block: string;
+  facilityId: string;
+  availableStates: string[];
+  availableDistricts: string[];
+  availableBlocks: string[];
+}
+
 const REVERSE_CACHE_KEY_PREFIX = "pragati_geocode_";
 const LAST_LOCATION_CACHE_KEY = "pragati_last_user_location";
+
+// ─── DEFAULT REGISTERED CONTEXTS ─────────────────────────────────────────────
+
+export const DEFAULT_DOCTOR_LOCATION: DoctorLocation = {
+  doctorId: "demo-doc-001",
+  doctorName: "Dr. Ananya Rao",
+  registeredFacilityId: "fac-001",
+  facilityName: "Nandurbar District Civil Hospital",
+  facilityType: "District Civil Hospital",
+  department: "Department of Cardiology",
+  room: "Room 204",
+  counter: "OPD Counter 3",
+  address: "Civil Hospital Road, Near Collector Office, Nandurbar",
+  district: "Nandurbar",
+  state: "Maharashtra",
+  lat: 21.3734,
+  lng: 74.2404,
+};
+
+export const DEFAULT_PROVIDER_LOCATION: ProviderLocation = {
+  providerId: "demo-provider-001",
+  providerName: "Central Pharmacy & Facility Supplies",
+  registeredFacilityId: "fac-001",
+  facilityName: "Nandurbar District Civil Hospital (Central Pharmacy)",
+  facilityType: "PHARMACY",
+  department: "Pharmacy & Labs Operations",
+  address: "Civil Hospital Road, Nandurbar",
+  district: "Nandurbar",
+  state: "Maharashtra",
+  lat: 21.3734,
+  lng: 74.2404,
+  serviceRadiusKm: 15,
+};
+
+export const DEFAULT_GOVERNMENT_LOCATION: GovernmentLocation = {
+  state: "Maharashtra",
+  district: "Nandurbar",
+  block: "All Blocks",
+  facilityId: "ALL",
+  availableStates: ["Maharashtra", "Tamil Nadu", "Karnataka", "Delhi NCR", "Gujarat"],
+  availableDistricts: [
+    "Nandurbar",
+    "Gadchiroli",
+    "Latur",
+    "Palghar",
+    "Nashik",
+    "Dhule",
+    "Pune",
+    "Mumbai City",
+    "Mumbai Suburban",
+    "Nagpur",
+    "Thane",
+  ],
+  availableBlocks: [
+    "All Blocks",
+    "Nandurbar",
+    "Navapur",
+    "Shahada",
+    "Dhadgaon (Akrani)",
+    "Taloda",
+    "Akkalkuwa",
+  ],
+};
 
 /**
  * Calculates Great-Circle distance between two coordinates using the Haversine formula.
@@ -99,9 +226,9 @@ export async function getCurrentLocation(): Promise<UserCoordinates> {
         if (error.code === error.PERMISSION_DENIED) {
           msg = "Location permission was denied.";
         } else if (error.code === error.POSITION_UNAVAILABLE) {
-          msg = "GPS signal is currently unavailable.";
+          msg = "Location information is currently unavailable.";
         } else if (error.code === error.TIMEOUT) {
-          msg = "Location request timed out. Please try again.";
+          msg = "Location request timed out.";
         }
         reject(new Error(msg));
       },
@@ -111,32 +238,30 @@ export async function getCurrentLocation(): Promise<UserCoordinates> {
 }
 
 /**
- * Checks existing location permission state if Supported.
+ * Requests permission explicitly if Permissions API is supported.
  */
-export async function checkLocationPermission(): Promise<"granted" | "denied" | "prompt"> {
+export async function checkLocationPermission(): Promise<"granted" | "prompt" | "denied"> {
   if (typeof window === "undefined" || !navigator.permissions) {
     return "prompt";
   }
   try {
-    const result = await navigator.permissions.query({ name: "geolocation" as PermissionName });
-    return result.state;
+    const status = await navigator.permissions.query({ name: "geolocation" });
+    return status.state;
   } catch {
     return "prompt";
   }
 }
 
 /**
- * Reverse geocodes coordinates to a human-readable locality name.
- * Uses OpenStreetMap Nominatim with local caching and offline fallback.
+ * Reverse geocodes coordinates (lat, lng) to a clean, human-readable locality name.
+ * Uses client-side reverse geocoding with localStorage caching + fallback heuristic.
  */
 export async function reverseGeocode(lat: number, lng: number): Promise<GeocodedLocation> {
-  const roundedLat = Math.round(lat * 1000) / 1000;
-  const roundedLng = Math.round(lng * 1000) / 1000;
-  const cacheKey = `${REVERSE_CACHE_KEY_PREFIX}${roundedLat}_${roundedLng}`;
+  const cacheKey = `${REVERSE_CACHE_KEY_PREFIX}${lat.toFixed(3)}_${lng.toFixed(3)}`;
 
   if (typeof window !== "undefined") {
     try {
-      const cached = sessionStorage.getItem(cacheKey);
+      const cached = localStorage.getItem(cacheKey);
       if (cached) {
         return JSON.parse(cached);
       }
@@ -145,17 +270,106 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Geocoded
     }
   }
 
-  // Attempt live reverse geocoding via OpenStreetMap Nominatim API
+  // Known location heuristics (Chennai, Nandurbar, Mumbai, Pune, etc.)
+  const knownLocations = [
+    {
+      name: "Uthandi, Chennai",
+      city: "Chennai",
+      district: "Kanchipuram / Chennai",
+      state: "Tamil Nadu",
+      pincode: "600119",
+      lat: 12.8681,
+      lng: 80.2454,
+    },
+    {
+      name: "Perungudi, Chennai",
+      city: "Chennai",
+      district: "Chennai",
+      state: "Tamil Nadu",
+      pincode: "600096",
+      lat: 12.9654,
+      lng: 80.2461,
+    },
+    {
+      name: "Nandurbar, Maharashtra",
+      city: "Nandurbar",
+      district: "Nandurbar",
+      state: "Maharashtra",
+      pincode: "425412",
+      lat: 21.3734,
+      lng: 74.2404,
+    },
+    {
+      name: "Navapur, Nandurbar",
+      city: "Navapur",
+      district: "Nandurbar",
+      state: "Maharashtra",
+      pincode: "425418",
+      lat: 21.1685,
+      lng: 73.7915,
+    },
+    {
+      name: "Dhadgaon, Nandurbar",
+      city: "Dhadgaon",
+      district: "Nandurbar",
+      state: "Maharashtra",
+      pincode: "425414",
+      lat: 21.8285,
+      lng: 74.2235,
+    },
+    {
+      name: "Bandra, Mumbai",
+      city: "Mumbai",
+      district: "Mumbai Suburban",
+      state: "Maharashtra",
+      pincode: "400050",
+      lat: 19.0596,
+      lng: 72.8295,
+    },
+    {
+      name: "Shivaji Nagar, Pune",
+      city: "Pune",
+      district: "Pune",
+      state: "Maharashtra",
+      pincode: "411005",
+      lat: 18.5314,
+      lng: 73.8446,
+    },
+  ];
+
+  for (const loc of knownLocations) {
+    const dist = calculateDistance(lat, lng, loc.lat, loc.lng);
+    if (dist < 15) {
+      const result: GeocodedLocation = {
+        lat,
+        lng,
+        displayName: loc.name,
+        locality: loc.name,
+        city: loc.city,
+        district: loc.district,
+        state: loc.state,
+        pincode: loc.pincode,
+        isManual: false,
+      };
+      try {
+        if (typeof window !== "undefined") {
+          localStorage.setItem(cacheKey, JSON.stringify(result));
+        }
+      } catch {
+        // ignore
+      }
+      return result;
+    }
+  }
+
+  // Fallback via OpenStreetMap Nominatim reverse geocode if network permits
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14&addressdetails=1`,
       {
-        headers: {
-          "Accept-Language": "en",
-        },
+        headers: { "Accept-Language": "en" },
       }
     );
-
     if (res.ok) {
       const data = await res.json();
       const addr = data.address || {};
@@ -165,22 +379,20 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Geocoded
         addr.residential ||
         addr.village ||
         addr.town ||
-        addr.city_district ||
         addr.city ||
-        addr.county ||
-        "Detected Area";
-      const city = addr.city || addr.town || addr.county || addr.state_district || "";
-      const district = addr.state_district || addr.county || "";
+        "Local Area";
+      const city = addr.city || addr.town || addr.county || addr.district || "";
       const state = addr.state || "";
       const pincode = addr.postcode || "";
+      const district = addr.county || addr.state_district || city;
 
-      const fullDisplay = [locality, city, state].filter(Boolean).join(", ");
+      const displayName = [locality, city, state].filter(Boolean).slice(0, 2).join(", ");
 
       const result: GeocodedLocation = {
         lat,
         lng,
-        displayName: fullDisplay || data.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
-        locality: locality && city && locality !== city ? `${locality}, ${city}` : locality || city || "Near You",
+        displayName: displayName || `${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E`,
+        locality: displayName || "Near You",
         city,
         district,
         state,
@@ -188,87 +400,141 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Geocoded
         isManual: false,
       };
 
-      if (typeof window !== "undefined") {
-        try {
-          sessionStorage.setItem(cacheKey, JSON.stringify(result));
-        } catch {
-          // ignore
+      try {
+        if (typeof window !== "undefined") {
+          localStorage.setItem(cacheKey, JSON.stringify(result));
         }
+      } catch {
+        // ignore
       }
-
       return result;
     }
-  } catch (err) {
-    // Network offline or failed -> fallback
+  } catch {
+    // Network failed or blocked
   }
 
-  // Fallback estimation based on prominent coordinates
-  return deriveFallbackLocality(lat, lng);
+  // Final heuristic fallback
+  return {
+    lat,
+    lng,
+    displayName: `${lat.toFixed(3)}°N, ${lng.toFixed(3)}°E`,
+    locality: `Coordinates (${lat.toFixed(2)}, ${lng.toFixed(2)})`,
+    state: "India",
+    isManual: false,
+  };
 }
 
 /**
- * Geocodes a manual text query (locality, PIN code, or city).
+ * Geocodes a freeform search query (e.g. "Uthandi", "Nandurbar", "Chennai", "425412") to coordinates.
  */
 export async function geocodeManualLocation(query: string): Promise<GeocodedLocation> {
-  const trimmed = query.trim();
-  if (!trimmed) {
-    throw new Error("Please enter a location or PIN code.");
-  }
+  const q = query.trim().toLowerCase();
 
-  // Check common demo locations first for instant response
-  const knownLocations: Record<string, GeocodedLocation> = {
-    perungudi: { lat: 12.9654, lng: 80.2461, displayName: "Perungudi, Chennai, Tamil Nadu", locality: "Perungudi, Chennai", city: "Chennai", district: "Chennai", state: "Tamil Nadu", pincode: "600096", isManual: true },
-    chennai: { lat: 13.0827, lng: 80.2785, displayName: "Chennai Central, Tamil Nadu", locality: "Chennai", city: "Chennai", state: "Tamil Nadu", pincode: "600003", isManual: true },
-    nandurbar: { lat: 21.3734, lng: 74.2404, displayName: "Nandurbar, Maharashtra", locality: "Nandurbar City", city: "Nandurbar", state: "Maharashtra", pincode: "425412", isManual: true },
-    navapur: { lat: 21.1685, lng: 73.7915, displayName: "Navapur, Nandurbar, Maharashtra", locality: "Navapur", city: "Navapur", state: "Maharashtra", pincode: "425418", isManual: true },
-    dhadgaon: { lat: 21.6500, lng: 74.2215, displayName: "Dhadgaon, Nandurbar, Maharashtra", locality: "Dhadgaon", city: "Nandurbar", state: "Maharashtra", pincode: "425414", isManual: true },
-    mumbai: { lat: 19.0760, lng: 72.8777, displayName: "Mumbai, Maharashtra", locality: "Mumbai", city: "Mumbai", state: "Maharashtra", pincode: "400001", isManual: true },
-    pune: { lat: 18.5204, lng: 73.8567, displayName: "Pune, Maharashtra", locality: "Pune", city: "Pune", state: "Maharashtra", pincode: "411001", isManual: true },
-    bengaluru: { lat: 12.9716, lng: 77.5946, displayName: "Bengaluru, Karnataka", locality: "Bengaluru", city: "Bengaluru", state: "Karnataka", pincode: "560001", isManual: true },
-    bangalore: { lat: 12.9716, lng: 77.5946, displayName: "Bengaluru, Karnataka", locality: "Bengaluru", city: "Bengaluru", state: "Karnataka", pincode: "560001", isManual: true },
-    delhi: { lat: 28.6139, lng: 77.2090, displayName: "New Delhi, Delhi", locality: "New Delhi", city: "Delhi", state: "Delhi", pincode: "110001", isManual: true },
-    "600096": { lat: 12.9654, lng: 80.2461, displayName: "Perungudi PIN 600096, Chennai", locality: "Perungudi, Chennai", city: "Chennai", state: "Tamil Nadu", pincode: "600096", isManual: true },
-    "425412": { lat: 21.3734, lng: 74.2404, displayName: "Nandurbar PIN 425412, Maharashtra", locality: "Nandurbar", city: "Nandurbar", state: "Maharashtra", pincode: "425412", isManual: true },
+  const presets: Record<string, GeocodedLocation> = {
+    "uthandi": {
+      lat: 12.8681,
+      lng: 80.2454,
+      displayName: "Uthandi, Chennai",
+      locality: "Uthandi, Chennai",
+      city: "Chennai",
+      district: "Chennai",
+      state: "Tamil Nadu",
+      pincode: "600119",
+      isManual: true,
+    },
+    "chennai": {
+      lat: 13.0827,
+      lng: 80.2707,
+      displayName: "Chennai, Tamil Nadu",
+      locality: "Chennai, Tamil Nadu",
+      city: "Chennai",
+      district: "Chennai",
+      state: "Tamil Nadu",
+      pincode: "600001",
+      isManual: true,
+    },
+    "nandurbar": {
+      lat: 21.3734,
+      lng: 74.2404,
+      displayName: "Nandurbar, Maharashtra",
+      locality: "Nandurbar, Maharashtra",
+      city: "Nandurbar",
+      district: "Nandurbar",
+      state: "Maharashtra",
+      pincode: "425412",
+      isManual: true,
+    },
+    "navapur": {
+      lat: 21.1685,
+      lng: 73.7915,
+      displayName: "Navapur, Nandurbar",
+      locality: "Navapur, Nandurbar",
+      city: "Navapur",
+      district: "Nandurbar",
+      state: "Maharashtra",
+      pincode: "425418",
+      isManual: true,
+    },
+    "dhadgaon": {
+      lat: 21.8285,
+      lng: 74.2235,
+      displayName: "Dhadgaon, Nandurbar",
+      locality: "Dhadgaon, Nandurbar",
+      city: "Dhadgaon",
+      district: "Nandurbar",
+      state: "Maharashtra",
+      pincode: "425414",
+      isManual: true,
+    },
+    "mumbai": {
+      lat: 19.076,
+      lng: 72.8777,
+      displayName: "Mumbai, Maharashtra",
+      locality: "Mumbai, Maharashtra",
+      city: "Mumbai",
+      district: "Mumbai",
+      state: "Maharashtra",
+      pincode: "400001",
+      isManual: true,
+    },
+    "pune": {
+      lat: 18.5204,
+      lng: 73.8567,
+      displayName: "Pune, Maharashtra",
+      locality: "Pune, Maharashtra",
+      city: "Pune",
+      district: "Pune",
+      state: "Maharashtra",
+      pincode: "411001",
+      isManual: true,
+    },
   };
 
-  const lower = trimmed.toLowerCase();
-  for (const [key, loc] of Object.entries(knownLocations)) {
-    if (lower.includes(key) || key.includes(lower)) {
-      return loc;
+  for (const [key, val] of Object.entries(presets)) {
+    if (q.includes(key)) {
+      return val;
     }
   }
 
-  // Attempt Nominatim Search
+  // Fallback via Nominatim Search API
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(trimmed + ", India")}&limit=1&addressdetails=1`,
-      {
-        headers: { "Accept-Language": "en" },
-      }
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        query + ", India"
+      )}&limit=1`,
+      { headers: { "Accept-Language": "en" } }
     );
-
     if (res.ok) {
-      const results = await res.json();
-      if (results && results.length > 0) {
-        const item = results[0];
-        const addr = item.address || {};
-        const locality =
-          addr.suburb ||
-          addr.neighbourhood ||
-          addr.village ||
-          addr.town ||
-          addr.city ||
-          trimmed;
-
+      const list = await res.json();
+      if (list && list.length > 0) {
+        const item = list[0];
+        const lat = parseFloat(item.lat);
+        const lng = parseFloat(item.lon);
         return {
-          lat: parseFloat(item.lat),
-          lng: parseFloat(item.lon),
-          displayName: item.display_name,
-          locality: locality,
-          city: addr.city || addr.town || "",
-          district: addr.state_district || addr.county || "",
-          state: addr.state || "",
-          pincode: addr.postcode || "",
+          lat,
+          lng,
+          displayName: item.display_name.split(",").slice(0, 2).join(", "),
+          locality: item.display_name.split(",")[0] || query,
           isManual: true,
         };
       }
@@ -277,37 +543,59 @@ export async function geocodeManualLocation(query: string): Promise<GeocodedLoca
     // ignore
   }
 
-  throw new Error(`Could not find coordinates for "${trimmed}". Please try entering a PIN code or nearby city name.`);
+  // Default fallback if unknown
+  return {
+    lat: 21.3734,
+    lng: 74.2404,
+    displayName: `${query}`,
+    locality: query,
+    state: "India",
+    isManual: true,
+  };
 }
 
 /**
- * Offline fallback locality derivation from rough coordinate clusters.
+ * Returns physical facility location details by ID.
  */
-function deriveFallbackLocality(lat: number, lng: number): GeocodedLocation {
-  if (lat > 12.5 && lat < 13.5 && lng > 79.8 && lng < 80.5) {
-    return { lat, lng, displayName: "Chennai Region, Tamil Nadu", locality: "Chennai Metro Area", city: "Chennai", state: "Tamil Nadu", isManual: false };
-  }
-  if (lat > 21.0 && lat < 22.0 && lng > 73.5 && lng < 75.0) {
-    return { lat, lng, displayName: "Nandurbar District, Maharashtra", locality: "Nandurbar District", city: "Nandurbar", state: "Maharashtra", isManual: false };
-  }
-  if (lat > 18.8 && lat < 19.4 && lng > 72.7 && lng < 73.2) {
-    return { lat, lng, displayName: "Mumbai Region, Maharashtra", locality: "Mumbai Metropolitan", city: "Mumbai", state: "Maharashtra", isManual: false };
-  }
-  if (lat > 18.3 && lat < 18.8 && lng > 73.6 && lng < 74.1) {
-    return { lat, lng, displayName: "Pune Region, Maharashtra", locality: "Pune Urban Area", city: "Pune", state: "Maharashtra", isManual: false };
-  }
-  if (lat > 12.8 && lat < 13.2 && lng > 77.4 && lng < 77.8) {
-    return { lat, lng, displayName: "Bengaluru Urban, Karnataka", locality: "Bengaluru", city: "Bengaluru", state: "Karnataka", isManual: false };
-  }
-  if (lat > 28.4 && lat < 28.9 && lng > 76.9 && lng < 77.4) {
-    return { lat, lng, displayName: "Delhi NCR Region", locality: "New Delhi", city: "Delhi", state: "Delhi", isManual: false };
-  }
-
+export function getFacilityLocation(facilityId: string): {
+  id: string;
+  name: string;
+  address: string;
+  district: string;
+  state: string;
+  lat: number;
+  lng: number;
+} | null {
+  const fac = DEMO_FACILITIES.find((f) => f.id === facilityId);
+  if (!fac) return null;
   return {
-    lat,
-    lng,
-    displayName: `Coordinates (${lat.toFixed(3)}°, ${lng.toFixed(3)}°)`,
-    locality: `Current Location (${lat.toFixed(3)}°, ${lng.toFixed(3)}°)`,
-    isManual: false,
+    id: fac.id,
+    name: fac.name,
+    address: fac.address,
+    district: fac.district,
+    state: fac.state,
+    lat: fac.lat,
+    lng: fac.lng,
   };
+}
+
+/**
+ * Returns the registered work location for a doctor.
+ */
+export function getDoctorRegisteredLocation(doctorId?: string): DoctorLocation {
+  return DEFAULT_DOCTOR_LOCATION;
+}
+
+/**
+ * Returns the registered business location for a pharmacy / provider.
+ */
+export function getProviderRegisteredLocation(providerId?: string): ProviderLocation {
+  return DEFAULT_PROVIDER_LOCATION;
+}
+
+/**
+ * Returns the administrative location hierarchy for government users.
+ */
+export function getGovernmentLocationContext(): GovernmentLocation {
+  return DEFAULT_GOVERNMENT_LOCATION;
 }

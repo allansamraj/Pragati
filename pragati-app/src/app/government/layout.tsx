@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { sessionService } from "@/lib/auth/sessionService";
 import { ProfileDropdown } from "@/components/shared/ProfileDropdown";
+import { RoleLocationHeader } from "@/components/layout/RoleLocationHeader";
 import {
   LayoutDashboard, Map, Building2, Activity, Package,
   AlertTriangle, Share2, BarChart2, FileText, Settings,
@@ -127,11 +128,7 @@ export default function GovernmentLayout({ children }: { children: React.ReactNo
       >
         {/* Top Header */}
         <header className="h-14 border-b border-[rgba(124,45,45,0.08)] bg-white/80 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-20">
-          <div className="flex items-center gap-2.5">
-            <span className="text-[13px] font-bold text-ink-primary">Department of Public Health &amp; Family Welfare</span>
-            <span className="text-ink-tertiary">|</span>
-            <span className="text-[11px] text-ink-secondary">State Command Center</span>
-          </div>
+          <RoleLocationHeader role="government" />
 
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-amber-50 border border-amber-200 text-amber-800">

@@ -607,6 +607,45 @@ function handleDoctorQuery(
     };
   }
 
+  if (
+    q.includes("nearby") ||
+    q.includes("facility") ||
+    q.includes("hospital") ||
+    q.includes("diagnostic") ||
+    q.includes("referral") ||
+    q.includes("network") ||
+    q.includes("catchment")
+  ) {
+    return {
+      id: msgId,
+      sender: "assistant",
+      text:
+        `Regional Healthcare Network for your registered facility (Nandurbar District Civil Hospital, Maharashtra):\n\n` +
+        `1. LifeCare Heart & Diagnostic Clinic (0.8 km away)\n` +
+        `   • Diagnostics: 12-Lead ECG, 2D Echocardiography\n` +
+        `   • Status: Operational (~5m wait)\n\n` +
+        `2. Sanjivani Multispeciality Hospital (1.2 km away)\n` +
+        `   • Services: 24/7 Level-2 Trauma, Cath Lab, ICU\n` +
+        `   • PM-JAY Status: Empaneled (Cashless)\n\n` +
+        `3. Navapur Sub-District Hospital (32 km away)\n` +
+        `   • Network Role: Secondary Teleconsultation Spoke\n\n` +
+        `4. Dhadgaon Rural CHC (45 km away)\n` +
+        `   • Network Role: Primary Rural Teleconsultation Spoke`,
+      timestamp,
+      role: "doctor",
+      language,
+      actionLink: {
+        label: "View Referral Network",
+        href: "/doctor/dashboard",
+      },
+      suggestedPrompts: [
+        "How many patients are waiting for me?",
+        "Show today's appointments",
+        "View patient summary for Arjun Deshmukh",
+      ],
+    };
+  }
+
   if (q.includes("appointment") || q.includes("today") || q.includes("schedule")) {
     const appts = doctorTools.getTodayAppointments();
     const apptList = appts.map((a) => `• ${a.time}: ${a.patientName} (${a.type}) — ${a.reason}`).join("\n");
@@ -708,6 +747,38 @@ function handleProviderQuery(
     };
   }
 
+  if (
+    q.includes("nearby") ||
+    q.includes("facility") ||
+    q.includes("hospital") ||
+    q.includes("demand") ||
+    q.includes("network") ||
+    q.includes("service area")
+  ) {
+    return {
+      id: msgId,
+      sender: "assistant",
+      text:
+        `Connected Healthcare Network for your registered business location (Nandurbar District Civil Hospital Central Pharmacy, Maharashtra · 15 km Service Radius):\n\n` +
+        `• Connected Inpatient Wards: ICU, CCU, Cardiology OPD, General Ward\n` +
+        `• Local Empaneled Network: Sanjivani Multispeciality Hospital (1.2 km)\n` +
+        `• Peripheral Stock Requests: Navapur Sub-District Hospital, Dhadgaon CHC\n` +
+        `• Active Dispensing Queue: 14 Tokens waiting (~8 min fulfillment time)`,
+      timestamp,
+      role: "provider",
+      language,
+      actionLink: {
+        label: "Open Pharmacy Operations",
+        href: "/provider/dashboard",
+      },
+      suggestedPrompts: [
+        "Check Metformin 500mg stock",
+        "View medicine inventory",
+        "Check diagnostic lab queue",
+      ],
+    };
+  }
+
   return {
     id: msgId,
     sender: "assistant",
@@ -719,7 +790,7 @@ function handleProviderQuery(
     suggestedPrompts: [
       "Check Metformin 500mg stock",
       "View medicine inventory",
-      "Check diagnostic lab queue",
+      "Which hospitals are near my pharmacy?",
     ],
   };
 }
@@ -734,15 +805,28 @@ function handleGovernmentQuery(
   msgId: string,
   language: AssistantLanguage
 ): ChatMessage {
-  if (q.includes("nandurbar") || q.includes("district") || q.includes("gap") || q.includes("index") || q.includes("access")) {
+  if (
+    q.includes("nandurbar") ||
+    q.includes("district") ||
+    q.includes("gap") ||
+    q.includes("index") ||
+    q.includes("access") ||
+    q.includes("underserved") ||
+    q.includes("shortage")
+  ) {
     const analytics = governmentTools.getDistrictAnalytics(q.includes("nandurbar") ? "nandurbar" : undefined);
-    const dList = analytics.map((d) => `• ${d.district}: Health Index ${d.indexScore}/100 [${d.tier}] — Specialist Coverage: ${d.specialistCoverage}, Diagnostic Uptime: ${d.diagnosticUptime}`).join("\n");
+    const dList = analytics
+      .map(
+        (d) =>
+          `• ${d.district}: Health Index ${d.indexScore}/100 [${d.tier}] — Specialist Coverage: ${d.specialistCoverage}, Diagnostic Uptime: ${d.diagnosticUptime}, Shortages: ${d.acuteShortages}`
+      )
+      .join("\n");
     return {
       id: msgId,
       sender: "assistant",
       text:
-        `Maharashtra State Public Health Intelligence — District Accessibility Audit:\n\n${dList}\n\n` +
-        "Telemetry indicates severe specialist vacancy in Nandurbar (34%) and Gadchiroli (28%), currently mitigated by PRAGATI Telemedicine spokes.",
+        `Administrative Surveillance Context: Maharashtra State Health Command (Nandurbar District Focus):\n\n${dList}\n\n` +
+        `Critical Alert: High specialist vacancy identified in Dhadgaon and Navapur blocks. PRAGATI Telemedicine tele-cardiology hubs are currently bridging acute care gaps.`,
       timestamp,
       role: "government",
       language,
@@ -750,6 +834,11 @@ function handleGovernmentQuery(
         label: "Open Maharashtra Geographic Map",
         href: "/government/map",
       },
+      suggestedPrompts: [
+        "Show healthcare shortages in Nandurbar",
+        "View district accessibility index",
+        "Check telemedicine load across blocks",
+      ],
     };
   }
 
