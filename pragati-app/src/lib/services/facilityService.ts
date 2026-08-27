@@ -295,6 +295,7 @@ export async function getNearbyFacilities({
       isPmJayEmpaneled: true,
       accreditation: "NABH Accredited · Ayushman Bharat PM-JAY Empaneled",
       address: `Healthcare Corridor, ${locality}`,
+      city: locality.split(",")[0] || "Chennai",
       district: locality.split(",")[1]?.trim() || "District Hub",
       state: "Health Network",
       pincode: "Verified",
@@ -426,6 +427,7 @@ export async function getEmergencyFacilities(
  */
 function generateLocalNearbyFacilities(lat: number, lng: number, locality: string): Facility[] {
   const baseLoc = locality.split(",")[0] || "Local";
+  const city = locality.split(",")[0] || "Chennai";
 
   return [
     // 1. Government Urban / Primary Health Centre
@@ -438,6 +440,7 @@ function generateLocalNearbyFacilities(lat: number, lng: number, locality: strin
       ownership: "government",
       accreditation: "State Public Health · 100% Free Care",
       address: `Main Clinic Road, ${locality}`,
+      city,
       district: locality.split(",")[1]?.trim() || "District Hub",
       state: "Public Health Dept",
       pincode: "Verified",
@@ -477,6 +480,7 @@ function generateLocalNearbyFacilities(lat: number, lng: number, locality: strin
       isPmJayEmpaneled: true,
       accreditation: "NABH Accredited · Ayushman Bharat PM-JAY Empaneled (Cashless)",
       address: `Expressway Healthcare Corridor, ${locality}`,
+      city,
       district: locality.split(",")[1]?.trim() || "District Hub",
       state: "Public Health Network",
       pincode: "Verified",
@@ -519,6 +523,7 @@ function generateLocalNearbyFacilities(lat: number, lng: number, locality: strin
       ownership: "government",
       accreditation: "Government Public Health · 100% Free Care",
       address: `Hospital Road, ${locality}`,
+      city,
       district: locality.split(",")[1]?.trim() || "District Hub",
       state: "Public Health Dept",
       pincode: "Verified",
@@ -557,6 +562,7 @@ function generateLocalNearbyFacilities(lat: number, lng: number, locality: strin
       isPmJayEmpaneled: true,
       accreditation: "NABH Accredited · Ayushman Bharat PM-JAY & TPA Cashless",
       address: `OMR IT Highway, ${locality}`,
+      city,
       district: locality.split(",")[1]?.trim() || "District Hub",
       state: "Private Health Network",
       pincode: "Verified",
@@ -597,6 +603,7 @@ function generateLocalNearbyFacilities(lat: number, lng: number, locality: strin
       ownership: "private",
       accreditation: "Private Specialty Clinic",
       address: `Opposite Bus Stand, ${locality}`,
+      city,
       district: locality.split(",")[1]?.trim() || "District Hub",
       state: "Private Health Network",
       pincode: "Verified",
@@ -634,6 +641,7 @@ function generateLocalNearbyFacilities(lat: number, lng: number, locality: strin
       ownership: "private",
       accreditation: "NABL Accredited Diagnostic Centre",
       address: `Commercial Complex, ${locality}`,
+      city,
       district: locality.split(",")[1]?.trim() || "District Hub",
       state: "Private Diagnostics",
       pincode: "Verified",

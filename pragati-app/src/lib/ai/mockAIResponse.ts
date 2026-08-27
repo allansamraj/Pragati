@@ -620,17 +620,17 @@ function handleDoctorQuery(
       id: msgId,
       sender: "assistant",
       text:
-        `Regional Healthcare Network for your registered facility (Nandurbar District Civil Hospital, Maharashtra):\n\n` +
-        `1. LifeCare Heart & Diagnostic Clinic (0.8 km away)\n` +
-        `   • Diagnostics: 12-Lead ECG, 2D Echocardiography\n` +
+        `Regional Healthcare Network for your registered facility (Government General Hospital, Chennai · Tamil Nadu):\n\n` +
+        `1. Medall Heart & Specialty Diagnostic Clinic, Park Town (0.6 km away)\n` +
+        `   • Diagnostics: 12-Lead ECG, 2D Echocardiography, TMT\n` +
         `   • Status: Operational (~5m wait)\n\n` +
-        `2. Sanjivani Multispeciality Hospital (1.2 km away)\n` +
-        `   • Services: 24/7 Level-2 Trauma, Cath Lab, ICU\n` +
-        `   • PM-JAY Status: Empaneled (Cashless)\n\n` +
-        `3. Navapur Sub-District Hospital (32 km away)\n` +
-        `   • Network Role: Secondary Teleconsultation Spoke\n\n` +
-        `4. Dhadgaon Rural CHC (45 km away)\n` +
-        `   • Network Role: Primary Rural Teleconsultation Spoke`,
+        `2. Tamil Nadu Government Multi Super Speciality Hospital, Omandurar (1.8 km away)\n` +
+        `   • Services: 24/7 Level-1 Cardiac Trauma, Interventional Cath Lab, ICU\n` +
+        `   • Public Health Status: 100% Free Super-Speciality Care\n\n` +
+        `3. Apollo Hospitals, Greams Road (2.9 km away)\n` +
+        `   • Network Role: Ayushman Bharat PM-JAY Empaneled Partner (Cashless)\n\n` +
+        `4. Government Stanley Medical College Hospital (3.2 km away)\n` +
+        `   • Network Role: Secondary Referral Hub & Tertiary Care Partner`,
       timestamp,
       role: "doctor",
       language,
@@ -719,7 +719,7 @@ function handleProviderQuery(
       sender: "assistant",
       text:
         `Hospital Central Pharmacy Stock Status:\n\n${stockList}\n\n` +
-        (q.includes("metformin") ? "⚠️ Metformin 500mg is currently OUT OF STOCK. Emergency buffer PO #7891 has been dispatched to CMSD." : ""),
+        (q.includes("metformin") ? "⚠️ Metformin 500mg is currently OUT OF STOCK. Emergency buffer PO #4421 has been dispatched to TNMSC." : ""),
       timestamp,
       role: "provider",
       language,
@@ -759,11 +759,12 @@ function handleProviderQuery(
       id: msgId,
       sender: "assistant",
       text:
-        `Connected Healthcare Network for your registered business location (Nandurbar District Civil Hospital Central Pharmacy, Maharashtra · 15 km Service Radius):\n\n` +
-        `• Connected Inpatient Wards: ICU, CCU, Cardiology OPD, General Ward\n` +
-        `• Local Empaneled Network: Sanjivani Multispeciality Hospital (1.2 km)\n` +
-        `• Peripheral Stock Requests: Navapur Sub-District Hospital, Dhadgaon CHC\n` +
-        `• Active Dispensing Queue: 14 Tokens waiting (~8 min fulfillment time)`,
+        `Connected Healthcare Network for your registered business location (Chennai Central Pharmacy & Diagnostics, Tamil Nadu · 15 km Service Radius):\n\n` +
+        `• Connected Inpatient Facilities: Government General Hospital, Chennai (0.2 km)\n` +
+        `• Super-Speciality Referral Center: Tamil Nadu Multi Super Speciality Hospital, Omandurar (1.8 km)\n` +
+        `• Primary Care Spokes: Urban PHC Triplicane (2.4 km)\n` +
+        `• Empaneled Hospital Network: Apollo Hospitals, Greams Road (2.9 km)\n` +
+        `• Active Dispensing Queue: 8 Tokens waiting (~5 min fulfillment time)`,
       timestamp,
       role: "provider",
       language,
@@ -806,38 +807,40 @@ function handleGovernmentQuery(
   language: AssistantLanguage
 ): ChatMessage {
   if (
-    q.includes("nandurbar") ||
+    q.includes("chennai") ||
     q.includes("district") ||
     q.includes("gap") ||
     q.includes("index") ||
     q.includes("access") ||
     q.includes("underserved") ||
-    q.includes("shortage")
+    q.includes("shortage") ||
+    q.includes("tamil nadu") ||
+    q.includes("nandurbar")
   ) {
-    const analytics = governmentTools.getDistrictAnalytics(q.includes("nandurbar") ? "nandurbar" : undefined);
+    const analytics = governmentTools.getDistrictAnalytics(q.includes("chennai") ? "chennai" : undefined);
     const dList = analytics
       .map(
         (d) =>
-          `• ${d.district}: Health Index ${d.indexScore}/100 [${d.tier}] — Specialist Coverage: ${d.specialistCoverage}, Diagnostic Uptime: ${d.diagnosticUptime}, Shortages: ${d.acuteShortages}`
+          `• ${d.district} (${d.state}): Health Index ${d.indexScore}/100 [${d.tier}] — Specialist Coverage: ${d.specialistCoverage}, Diagnostic Uptime: ${d.diagnosticUptime}, Shortages: ${d.acuteShortages}`
       )
       .join("\n");
     return {
       id: msgId,
       sender: "assistant",
       text:
-        `Administrative Surveillance Context: Maharashtra State Health Command (Nandurbar District Focus):\n\n${dList}\n\n` +
-        `Critical Alert: High specialist vacancy identified in Dhadgaon and Navapur blocks. PRAGATI Telemedicine tele-cardiology hubs are currently bridging acute care gaps.`,
+        `Administrative Surveillance Context: Tamil Nadu State Health Command (Chennai District Focus):\n\n${dList}\n\n` +
+        `Summary: Chennai District demonstrates high specialist coverage (92%) and 96% diagnostic uptime. Continuous teleconsultation links are active for suburban peripheral health centres.`,
       timestamp,
       role: "government",
       language,
       actionLink: {
-        label: "Open Maharashtra Geographic Map",
+        label: "Open State Geographic Map",
         href: "/government/map",
       },
       suggestedPrompts: [
-        "Show healthcare shortages in Nandurbar",
+        "Show healthcare shortages in Chennai",
         "View district accessibility index",
-        "Check telemedicine load across blocks",
+        "Check telemedicine load across zones",
       ],
     };
   }

@@ -1,4 +1,12 @@
-// ─── PRAGATI DEMO PATIENT DATA — MAHARASHTRA ──────────────────────────────────
+export interface ReferralRecord {
+  id: string;
+  referringFacility: string;
+  targetFacility: string;
+  department: string;
+  reason: string;
+  status: "Active" | "Completed" | "Pending";
+  date: string;
+}
 
 export interface Patient {
   id: string;
@@ -13,6 +21,7 @@ export interface Patient {
   currentMedications: Medication[];
   upcomingAppointments: Appointment[];
   activeToken?: Token;
+  referrals?: ReferralRecord[];
 }
 
 export interface Medication {
@@ -51,6 +60,9 @@ export interface Token {
   specialty: string;
   bookedAt: string;
   estimatedWait: number;
+  estimatedWaitMinutes?: number;
+  patientsAhead?: number;
+  doctorName?: string;
 }
 
 export interface HealthRecord {
@@ -78,8 +90,8 @@ export const DEMO_PATIENT: Patient = {
   age: 54,
   gender: "Male",
   abhaId: "77-8923-4512-6734",
-  phone: "+91 98220 12345",
-  location: "Nandurbar, Maharashtra",
+  phone: "+91 98400 12345",
+  location: "Chennai, Tamil Nadu",
   bloodGroup: "B+",
   knownConditions: ["Essential Hypertension", "Type 2 Diabetes Mellitus", "Mild Dyslipidemia"],
   currentMedications: [
@@ -93,8 +105,8 @@ export const DEMO_PATIENT: Patient = {
       duration: "30 days",
       prescribedBy: "Dr. Ananya Rao, MD, DM (Cardiology)",
       prescribedDate: "12 Aug 2026",
-      facility: "Nandurbar District Civil Hospital",
-      rxNumber: "RX-MH-2026-8812",
+      facility: "Government General Hospital, Chennai",
+      rxNumber: "RX-TN-2026-8812",
       daysRemaining: 18,
       refillNeeded: false,
       instructions: "Take with water. Do not skip doses. Monitor pulse rate.",
@@ -109,11 +121,11 @@ export const DEMO_PATIENT: Patient = {
       duration: "30 days",
       prescribedBy: "Dr. Ananya Rao, MD, DM (Cardiology)",
       prescribedDate: "12 Aug 2026",
-      facility: "Nandurbar District Civil Hospital",
-      rxNumber: "RX-MH-2026-8812",
+      facility: "Government General Hospital, Chennai",
+      rxNumber: "RX-TN-2026-8812",
       daysRemaining: 18,
       refillNeeded: false,
-      instructions: "Always take after a meal to prevent gastric irritation.",
+      instructions: "Take with food to prevent gastric irritation.",
     },
     {
       id: "med-003",
@@ -121,28 +133,28 @@ export const DEMO_PATIENT: Patient = {
       genericName: "Atorvastatin Calcium (Statin)",
       dose: "20mg",
       frequency: "Once daily",
-      timing: "At bedtime / night",
+      timing: "Bedtime",
       duration: "30 days",
       prescribedBy: "Dr. Ananya Rao, MD, DM (Cardiology)",
       prescribedDate: "12 Aug 2026",
-      facility: "Nandurbar District Civil Hospital",
-      rxNumber: "RX-MH-2026-8812",
-      daysRemaining: 4,
-      refillNeeded: true,
+      facility: "Government General Hospital, Chennai",
+      rxNumber: "RX-TN-2026-8812",
+      daysRemaining: 18,
+      refillNeeded: false,
       instructions: "Lipid management. Avoid grapefruit juice.",
     },
     {
       id: "med-004",
-      name: "Metformin Hydrochloride 500mg",
-      genericName: "Metformin (Biguanide)",
+      name: "Metformin 500mg",
+      genericName: "Metformin HCl (Biguanide)",
       dose: "500mg",
       frequency: "Twice daily",
       timing: "Morning & Night with meals",
       duration: "60 days",
-      prescribedBy: "Dr. Prakash More, MD (General Medicine)",
+      prescribedBy: "Dr. S. Karthikeyan, MD (General Medicine)",
       prescribedDate: "01 Jul 2026",
-      facility: "Shahada Community Health Centre",
-      rxNumber: "RX-MH-2026-7640",
+      facility: "Urban Primary Health Centre (UPHC), Triplicane",
+      rxNumber: "RX-TN-2026-7640",
       daysRemaining: 2,
       refillNeeded: true,
       instructions: "Glycemic control. Check fasting blood sugar regularly.",
@@ -157,8 +169,8 @@ export const DEMO_PATIENT: Patient = {
       duration: "15 tablets",
       prescribedBy: "Dr. Ananya Rao, MD, DM (Cardiology)",
       prescribedDate: "12 Aug 2026",
-      facility: "Nandurbar District Civil Hospital",
-      rxNumber: "RX-MH-2026-8812",
+      facility: "Government General Hospital, Chennai",
+      rxNumber: "RX-TN-2026-8812",
       daysRemaining: 12,
       refillNeeded: false,
       instructions: "Emergency relief. If pain persists >10 mins, immediately call 108.",
@@ -170,7 +182,7 @@ export const DEMO_PATIENT: Patient = {
       type: "OPD Consultation",
       specialty: "Cardiology",
       doctor: "Dr. Ananya Rao",
-      facility: "Nandurbar District Civil Hospital",
+      facility: "Government General Hospital, Chennai",
       date: "Today, 27 Aug 2026",
       time: "10:30 AM",
       status: "confirmed",
@@ -178,24 +190,38 @@ export const DEMO_PATIENT: Patient = {
     },
     {
       id: "apt-002",
-      type: "PRAGATI Teleconsultation",
+      type: "Telemedicine Review",
       specialty: "General Medicine",
-      doctor: "Dr. Prakash More",
-      facility: "Dhadgaon Rural Hospital & PHC Hub",
-      date: "04 Sep 2026",
+      doctor: "Dr. S. Karthikeyan",
+      facility: "Government General Hospital, Chennai",
+      date: "05 Sep 2026",
       time: "11:00 AM",
       status: "confirmed",
-      notes: "Routine blood glucose review and HbA1c verification.",
+      notes: "Diabetes & Blood Pressure Quarterly Review",
     },
   ],
   activeToken: {
     tokenNumber: 41,
-    nowServing: 38,
-    facilityName: "Nandurbar District Civil Hospital",
-    specialty: "Cardiology OPD (Room 204)",
-    bookedAt: "08:45 AM",
-    estimatedWait: 15,
+    nowServing: 40,
+    patientsAhead: 1,
+    facilityName: "Government General Hospital, Chennai",
+    specialty: "Cardiology OPD",
+    doctorName: "Dr. Ananya Rao",
+    bookedAt: "08:30 AM",
+    estimatedWait: 8,
+    estimatedWaitMinutes: 8,
   },
+  referrals: [
+    {
+      id: "ref-001",
+      referringFacility: "Urban Primary Health Centre (UPHC), Triplicane",
+      targetFacility: "Government General Hospital, Chennai",
+      department: "Department of Cardiology",
+      reason: "Class I Exertional Angina with abnormal baseline ECG",
+      status: "Active",
+      date: "12 Aug 2026",
+    },
+  ],
 };
 
 export const DEMO_HEALTH_RECORDS: HealthRecord[] = [

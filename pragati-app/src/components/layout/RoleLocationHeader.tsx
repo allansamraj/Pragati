@@ -121,7 +121,7 @@ export function RoleLocationHeader({ role }: RoleLocationHeaderProps) {
                       <input
                         type="text"
                         required
-                        placeholder="e.g. Uthandi Chennai, Nandurbar, Mumbai, 600119..."
+                        placeholder="e.g. Chennai, Park Town, Adyar, Nandurbar, Mumbai, 600001..."
                         value={manualQuery}
                         onChange={(e) => setManualQuery(e.target.value)}
                         className="w-full h-10 px-3 bg-bg border border-[rgba(124,45,45,0.15)] rounded-[8px] text-[13px] text-ink-primary placeholder:text-ink-tertiary focus:outline-none focus:border-burgundy-600"
@@ -132,7 +132,7 @@ export function RoleLocationHeader({ role }: RoleLocationHeaderProps) {
                     <div className="space-y-1.5">
                       <span className="text-[10.5px] font-bold text-ink-tertiary uppercase block">Quick Presets:</span>
                       <div className="flex gap-1.5 flex-wrap">
-                        {["Uthandi, Chennai", "Perungudi, Chennai", "Nandurbar", "Navapur", "Mumbai", "Pune"].map((loc) => (
+                        {["Chennai, Tamil Nadu", "Uthandi, Chennai", "Park Town, Chennai", "Adyar, Chennai", "Nandurbar, Maharashtra", "Mumbai", "Pune"].map((loc) => (
                           <button
                             key={loc}
                             type="button"

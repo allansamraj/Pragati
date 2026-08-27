@@ -100,9 +100,9 @@ export default function DoctorLoginPage() {
 
         <div className="relative z-10 pt-4 border-t border-white/15 flex items-center justify-between text-[11.5px] text-slate-300" style={{ color: '#CBD5E1' }}>
           <span className="flex items-center gap-1.5 font-bold text-emerald-400" style={{ color: '#34D399' }}>
-            <ShieldCheck className="w-4 h-4" /> MMC / Maharashtra Medical Council Verified
+            <ShieldCheck className="w-4 h-4" /> Medical Council Verified & Registered
           </span>
-          <span className="text-slate-400 font-medium">Nandurbar District Civil Hospital</span>
+          <span className="text-slate-400 font-medium">Government General Hospital, Chennai</span>
         </div>
       </div>
 
@@ -121,7 +121,7 @@ export default function DoctorLoginPage() {
             </div>
             <div>
               <div className="text-[13px] font-bold text-ink-primary">Dr. Ananya Rao · Cardiologist</div>
-              <div className="text-[11px] text-ink-tertiary">MMC-2014-08-3921 · Nandurbar District Civil Hospital</div>
+              <div className="text-[11px] text-ink-tertiary">Government General Hospital, Chennai · Dept of Cardiology</div>
             </div>
           </div>
 

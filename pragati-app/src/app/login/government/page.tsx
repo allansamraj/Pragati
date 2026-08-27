@@ -168,7 +168,7 @@ export default function GovernmentLoginPage() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[12.5px] font-bold text-burgundy-800">Use Demo Government Account</div>
-              <div className="text-[11px] text-ink-tertiary truncate font-mono">government@pragati.demo · Maharashtra Demo</div>
+              <div className="text-[11px] text-ink-tertiary truncate font-mono">government@pragati.demo · Tamil Nadu Health Command</div>
             </div>
             <ArrowRight className="w-4 h-4 text-burgundy-700 group-hover:translate-x-1 transition-transform" />
           </button>

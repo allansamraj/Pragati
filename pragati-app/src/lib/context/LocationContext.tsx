@@ -24,6 +24,7 @@ import {
   DEFAULT_DOCTOR_LOCATION,
   DEFAULT_PROVIDER_LOCATION,
   DEFAULT_GOVERNMENT_LOCATION,
+  DEMO_LOCATION,
 } from "@/lib/services/locationService";
 import {
   getNearbyFacilities,
@@ -32,7 +33,7 @@ import {
 import { Facility } from "@/data/facilities";
 import { UserRole } from "@/lib/auth/types";
 
-export type LocationSource = "CURRENT_GPS" | "MANUAL" | "CACHED";
+export type LocationSource = "CURRENT_GPS" | "MANUAL" | "CACHED" | "DEMO";
 export type LocationStatus = "idle" | "loading" | "granted" | "denied" | "error";
 
 export interface RoleLocationSummary {
@@ -105,21 +106,21 @@ export interface LocationContextValue {
 const LocationContext = createContext<LocationContextValue | null>(null);
 
 const DEFAULT_PATIENT_FALLBACK: GeocodedLocation = {
-  lat: 12.8681,
-  lng: 80.2454,
-  displayName: "Uthandi, Chennai",
-  locality: "Uthandi, Chennai",
-  city: "Chennai",
-  district: "Chennai",
-  state: "Tamil Nadu",
-  pincode: "600119",
+  lat: DEMO_LOCATION.latitude,
+  lng: DEMO_LOCATION.longitude,
+  displayName: DEMO_LOCATION.locality,
+  locality: DEMO_LOCATION.locality,
+  city: DEMO_LOCATION.city,
+  district: DEMO_LOCATION.district,
+  state: DEMO_LOCATION.state,
+  pincode: DEMO_LOCATION.pincode,
   isManual: false,
 };
 
 export function LocationProvider({ children }: { children: React.ReactNode }) {
   // ── 1. PATIENT STATE ──
   const [patientLoc, setPatientLoc] = useState<GeocodedLocation>(DEFAULT_PATIENT_FALLBACK);
-  const [source, setSource] = useState<LocationSource>("CURRENT_GPS");
+  const [source, setSource] = useState<LocationSource>("DEMO");
   const [status, setStatus] = useState<LocationStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -195,12 +196,12 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
         setLastUpdated(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }));
         await updateNearbyFacilities(geocoded);
       } catch (err: any) {
-        console.warn("GPS lookup failed:", err.message);
+        console.warn("GPS lookup fallback to DEMO_LOCATION:", err.message);
         setStatus("denied");
         setError(err.message || "Location access unavailable.");
 
-        // Keep last known or fallback to Uthandi, Chennai
-        setSource("CACHED");
+        // Fallback to DEMO_LOCATION
+        setSource("DEMO");
         setLastUpdated(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }));
         await updateNearbyFacilities(DEFAULT_PATIENT_FALLBACK);
       } finally {
@@ -361,7 +362,12 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
             role: "patient",
             primaryLabel: patientLoc.locality,
             secondaryLabel: patientLoc.displayName,
-            badgeLabel: source === "CURRENT_GPS" ? "GPS Detected" : "Manually Selected",
+            badgeLabel:
+              source === "CURRENT_GPS"
+                ? "GPS Detected"
+                : source === "MANUAL"
+                ? "Manually Selected"
+                : "Demo Location",
             lat: patientLoc.lat,
             lng: patientLoc.lng,
             sourceType: "GPS",

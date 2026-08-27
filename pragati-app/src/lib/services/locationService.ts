@@ -4,6 +4,29 @@
 
 import { DEMO_FACILITIES, Facility } from "@/data/facilities";
 
+// ── 0. CENTRAL DEMO ENVIRONMENT CONFIGURATION ──
+// Switch this configuration object to change prototype deployment regions
+// (e.g. Tamil Nadu / Chennai -> Maharashtra / Nandurbar) without rewriting frontend code.
+export interface DemoLocationConfig {
+  state: string;
+  district: string;
+  city: string;
+  locality: string;
+  latitude: number;
+  longitude: number;
+  pincode: string;
+}
+
+export const DEMO_LOCATION: DemoLocationConfig = {
+  state: "Tamil Nadu",
+  district: "Chennai",
+  city: "Chennai",
+  locality: "Chennai, Tamil Nadu",
+  latitude: 13.0827,
+  longitude: 80.2707,
+  pincode: "600001",
+};
+
 export interface UserCoordinates {
   lat: number;
   lng: number;
@@ -34,7 +57,7 @@ export interface PatientLocation {
   state?: string;
   pincode?: string;
   displayName: string;
-  source: "CURRENT_GPS" | "MANUAL" | "CACHED";
+  source: "CURRENT_GPS" | "MANUAL" | "CACHED" | "DEMO";
   status: "idle" | "loading" | "granted" | "denied" | "error";
   lastUpdated: string;
 }
@@ -87,66 +110,67 @@ export interface GovernmentLocation {
 const REVERSE_CACHE_KEY_PREFIX = "pragati_geocode_";
 const LAST_LOCATION_CACHE_KEY = "pragati_last_user_location";
 
-// ─── DEFAULT REGISTERED CONTEXTS ─────────────────────────────────────────────
+// ─── DEFAULT REGISTERED CONTEXTS (CHENNAI DEMO CONFIGURATION) ────────────────
 
 export const DEFAULT_DOCTOR_LOCATION: DoctorLocation = {
   doctorId: "demo-doc-001",
   doctorName: "Dr. Ananya Rao",
-  registeredFacilityId: "fac-001",
-  facilityName: "Nandurbar District Civil Hospital",
-  facilityType: "District Civil Hospital",
-  department: "Department of Cardiology",
-  room: "Room 204",
-  counter: "OPD Counter 3",
-  address: "Civil Hospital Road, Near Collector Office, Nandurbar",
-  district: "Nandurbar",
-  state: "Maharashtra",
-  lat: 21.3734,
-  lng: 74.2404,
+  registeredFacilityId: "fac-chn-001",
+  facilityName: "Government General Hospital, Chennai",
+  facilityType: "Government Multi-Specialty General Hospital",
+  department: "Cardiology",
+  room: "Cardiology OPD (Room 204)",
+  counter: "Counter 3",
+  address: "EVR Periyar Salai, Park Town, Near Chennai Central",
+  district: "Chennai",
+  state: "Tamil Nadu",
+  lat: 13.0805,
+  lng: 80.2778,
 };
 
 export const DEFAULT_PROVIDER_LOCATION: ProviderLocation = {
   providerId: "demo-provider-001",
-  providerName: "Central Pharmacy & Facility Supplies",
-  registeredFacilityId: "fac-001",
-  facilityName: "Nandurbar District Civil Hospital (Central Pharmacy)",
+  providerName: "Chennai Central Pharmacy & Diagnostics",
+  registeredFacilityId: "fac-chn-008",
+  facilityName: "Chennai Central Pharmacy & Diagnostics",
   facilityType: "PHARMACY",
-  department: "Pharmacy & Labs Operations",
-  address: "Civil Hospital Road, Nandurbar",
-  district: "Nandurbar",
-  state: "Maharashtra",
-  lat: 21.3734,
-  lng: 74.2404,
+  department: "Central Dispensing & Labs",
+  address: "Central Healthcare Corridor, EVR Salai, Chennai",
+  district: "Chennai",
+  state: "Tamil Nadu",
+  lat: 13.0820,
+  lng: 80.2750,
   serviceRadiusKm: 15,
 };
 
 export const DEFAULT_GOVERNMENT_LOCATION: GovernmentLocation = {
-  state: "Maharashtra",
-  district: "Nandurbar",
-  block: "All Blocks",
+  state: "Tamil Nadu",
+  district: "Chennai",
+  block: "All Zones",
   facilityId: "ALL",
-  availableStates: ["Maharashtra", "Tamil Nadu", "Karnataka", "Delhi NCR", "Gujarat"],
+  availableStates: ["Tamil Nadu", "Maharashtra", "Karnataka", "Delhi NCR", "Gujarat"],
   availableDistricts: [
+    "Chennai",
+    "Kanchipuram",
+    "Chengalpattu",
+    "Thiruvallur",
+    "Coimbatore",
+    "Madurai",
+    "Salem",
+    "Tiruchirappalli",
     "Nandurbar",
-    "Gadchiroli",
-    "Latur",
-    "Palghar",
-    "Nashik",
-    "Dhule",
     "Pune",
     "Mumbai City",
-    "Mumbai Suburban",
-    "Nagpur",
-    "Thane",
   ],
   availableBlocks: [
-    "All Blocks",
-    "Nandurbar",
-    "Navapur",
-    "Shahada",
-    "Dhadgaon (Akrani)",
-    "Taloda",
-    "Akkalkuwa",
+    "All Zones",
+    "Park Town / Central",
+    "Teynampet",
+    "Anna Nagar",
+    "Adyar",
+    "Royapuram",
+    "Thiru-Vi-Ka Nagar",
+    "Kodambakkam",
   ],
 };
 
@@ -197,7 +221,7 @@ export async function getCurrentLocation(): Promise<UserCoordinates> {
 
     const options: PositionOptions = {
       enableHighAccuracy: true,
-      timeout: 10000,
+      timeout: 8000,
       maximumAge: 60000, // 1 minute cache
     };
 
@@ -270,12 +294,21 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Geocoded
     }
   }
 
-  // Known location heuristics (Chennai, Nandurbar, Mumbai, Pune, etc.)
+  // Known location heuristics (Chennai, Uthandi, Nandurbar, Mumbai, Pune, etc.)
   const knownLocations = [
+    {
+      name: "Chennai, Tamil Nadu",
+      city: "Chennai",
+      district: "Chennai",
+      state: "Tamil Nadu",
+      pincode: "600001",
+      lat: 13.0827,
+      lng: 80.2707,
+    },
     {
       name: "Uthandi, Chennai",
       city: "Chennai",
-      district: "Kanchipuram / Chennai",
+      district: "Chennai",
       state: "Tamil Nadu",
       pincode: "600119",
       lat: 12.8681,
@@ -413,35 +446,27 @@ export async function reverseGeocode(lat: number, lng: number): Promise<Geocoded
     // Network failed or blocked
   }
 
-  // Final heuristic fallback
+  // Final heuristic fallback based on DEMO_LOCATION
   return {
     lat,
     lng,
-    displayName: `${lat.toFixed(3)}°N, ${lng.toFixed(3)}°E`,
-    locality: `Coordinates (${lat.toFixed(2)}, ${lng.toFixed(2)})`,
-    state: "India",
+    displayName: DEMO_LOCATION.locality,
+    locality: DEMO_LOCATION.locality,
+    city: DEMO_LOCATION.city,
+    district: DEMO_LOCATION.district,
+    state: DEMO_LOCATION.state,
+    pincode: DEMO_LOCATION.pincode,
     isManual: false,
   };
 }
 
 /**
- * Geocodes a freeform search query (e.g. "Uthandi", "Nandurbar", "Chennai", "425412") to coordinates.
+ * Geocodes a freeform search query (e.g. "Chennai", "Uthandi", "Nandurbar", "Mumbai", "600001") to coordinates.
  */
 export async function geocodeManualLocation(query: string): Promise<GeocodedLocation> {
   const q = query.trim().toLowerCase();
 
   const presets: Record<string, GeocodedLocation> = {
-    "uthandi": {
-      lat: 12.8681,
-      lng: 80.2454,
-      displayName: "Uthandi, Chennai",
-      locality: "Uthandi, Chennai",
-      city: "Chennai",
-      district: "Chennai",
-      state: "Tamil Nadu",
-      pincode: "600119",
-      isManual: true,
-    },
     "chennai": {
       lat: 13.0827,
       lng: 80.2707,
@@ -451,6 +476,17 @@ export async function geocodeManualLocation(query: string): Promise<GeocodedLoca
       district: "Chennai",
       state: "Tamil Nadu",
       pincode: "600001",
+      isManual: true,
+    },
+    "uthandi": {
+      lat: 12.8681,
+      lng: 80.2454,
+      displayName: "Uthandi, Chennai",
+      locality: "Uthandi, Chennai",
+      city: "Chennai",
+      district: "Chennai",
+      state: "Tamil Nadu",
+      pincode: "600119",
       isManual: true,
     },
     "nandurbar": {
@@ -543,13 +579,13 @@ export async function geocodeManualLocation(query: string): Promise<GeocodedLoca
     // ignore
   }
 
-  // Default fallback if unknown
+  // Default fallback to DEMO_LOCATION
   return {
-    lat: 21.3734,
-    lng: 74.2404,
+    lat: DEMO_LOCATION.latitude,
+    lng: DEMO_LOCATION.longitude,
     displayName: `${query}`,
     locality: query,
-    state: "India",
+    state: DEMO_LOCATION.state,
     isManual: true,
   };
 }

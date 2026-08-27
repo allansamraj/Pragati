@@ -102,7 +102,7 @@ export default function ProviderLoginPage() {
           <span className="flex items-center gap-1.5 font-bold text-amber-300" style={{ color: '#FCD34D' }}>
             <ShieldCheck className="w-4 h-4" /> State Health Supply Chain Link
           </span>
-          <span className="text-slate-400 font-medium">Nandurbar District Civil Hospital</span>
+          <span className="text-slate-400 font-medium">Chennai Central Pharmacy & Diagnostics</span>
         </div>
       </div>
 
@@ -120,8 +120,8 @@ export default function ProviderLoginPage() {
               <Pill className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[13px] font-bold text-ink-primary">Nandurbar Central Pharmacy &amp; Stores</div>
-              <div className="text-[11px] text-ink-tertiary">Rajesh Kulkarni · Chief Pharmacist</div>
+              <div className="text-[13px] font-bold text-ink-primary">Chennai Central Pharmacy &amp; Diagnostics</div>
+              <div className="text-[11px] text-ink-tertiary">Hospital Pharmacy &amp; Resource Operations · 15 km Radius</div>
             </div>
           </div>
 
