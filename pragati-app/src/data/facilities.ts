@@ -32,7 +32,10 @@ export interface QueueState {
 export interface Facility {
   id: string;
   name: string;
-  type: "District Hospital" | "Community Health Centre" | "Primary Health Centre" | "Rural Hospital" | "Sub-district Hospital" | "Urban Primary Health Centre";
+  type: "District Hospital" | "Community Health Centre" | "Primary Health Centre" | "Rural Hospital" | "Sub-district Hospital" | "Urban Primary Health Centre" | "Private Multi-Specialty Hospital" | "Trust Hospital" | "Super-Specialty Hospital";
+  ownership?: "government" | "private_empaneled" | "trust" | "private";
+  isPmJayEmpaneled?: boolean;
+  accreditation?: string;
   address: string;
   district: string;
   state: string;

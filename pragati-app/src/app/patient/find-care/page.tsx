@@ -56,6 +56,7 @@ function FindCareContent() {
   const [triageLevel, setTriageLevel] = useState<TriageLevel>("urgent");
   const [selectedFacilityId, setSelectedFacilityId] = useState<string>("fac-001");
   const [customRadiusKm, setCustomRadiusKm] = useState<number | undefined>(undefined);
+  const [ownershipFilter, setOwnershipFilter] = useState<"all" | "government" | "private_empaneled" | "private">("all");
 
   // Mobile View Toggle
   const [mobileTab, setMobileTab] = useState<"list" | "map">("list");
@@ -150,10 +151,18 @@ function FindCareContent() {
     }
   };
 
-  // Filter facilities by user-selected radius if specified
+  // Filter facilities by user-selected radius & ownership if specified
   let facilities = searchResult?.facilities || [];
   if (customRadiusKm !== undefined) {
     facilities = facilities.filter((f) => (f.distanceKm ?? 999) <= customRadiusKm);
+  }
+  if (ownershipFilter !== "all") {
+    facilities = facilities.filter((f) => {
+      if (ownershipFilter === "government") return f.ownership === "government";
+      if (ownershipFilter === "private_empaneled") return f.ownership === "private_empaneled" || f.isPmJayEmpaneled;
+      if (ownershipFilter === "private") return f.ownership === "private" || f.ownership === "private_empaneled";
+      return true;
+    });
   }
 
   const effectiveRadiusKm = customRadiusKm ?? searchResult?.searchRadiusKm ?? 10;
@@ -384,41 +393,67 @@ function FindCareContent() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
-            {/* Radius Filters */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] font-bold text-ink-tertiary mr-1 flex items-center gap-1">
-                <Filter className="w-3 h-3" /> Distance:
-              </span>
-              {[
-                { label: "Within 2 km", val: 2 },
-                { label: "Within 5 km", val: 5 },
-                { label: "Within 10 km", val: 10 },
-                { label: "Within 25 km", val: 25 },
-                { label: "Any distance", val: undefined },
-              ].map((chip) => (
-                <button
-                  key={chip.label}
-                  type="button"
-                  onClick={() => setCustomRadiusKm(chip.val)}
-                  className={`px-2.5 py-1 rounded-[6px] text-[11px] font-semibold border transition-colors cursor-pointer ${
-                    customRadiusKm === chip.val
-                      ? "bg-burgundy-700 text-white border-burgundy-700 shadow-2xs"
-                      : "bg-bg text-ink-secondary border-[rgba(124,45,45,0.1)] hover:bg-blush"
-                  }`}
-                >
-                  {chip.label}
-                </button>
-              ))}
+            {/* Radius & Ownership Filters */}
+            <div className="flex flex-col gap-2.5 w-full pt-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-bold text-ink-tertiary mr-1 flex items-center gap-1">
+                  <Filter className="w-3 h-3" /> Distance:
+                </span>
+                {[
+                  { label: "Within 2 km", val: 2 },
+                  { label: "Within 5 km", val: 5 },
+                  { label: "Within 10 km", val: 10 },
+                  { label: "Within 25 km", val: 25 },
+                  { label: "Any distance", val: undefined },
+                ].map((chip) => (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    onClick={() => setCustomRadiusKm(chip.val)}
+                    className={`px-2.5 py-1 rounded-[6px] text-[11px] font-semibold border transition-colors cursor-pointer ${
+                      customRadiusKm === chip.val
+                        ? "bg-burgundy-700 text-white border-burgundy-700 shadow-2xs"
+                        : "bg-bg text-ink-secondary border-[rgba(124,45,45,0.1)] hover:bg-blush"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Ownership Filter Chips (Government vs Private PM-JAY) */}
+              <div className="flex items-center gap-1.5 flex-wrap border-t border-[rgba(124,45,45,0.06)] pt-2">
+                <span className="text-[11px] font-bold text-ink-tertiary mr-1 flex items-center gap-1">
+                  <Building2 className="w-3 h-3" /> Facility Type:
+                </span>
+                {[
+                  { label: "All Facilities (Public & Private)", val: "all" },
+                  { label: "🏛️ Government (Free)", val: "government" },
+                  { label: "💳 PM-JAY Empaneled (Cashless)", val: "private_empaneled" },
+                  { label: "🏥 Private Multi-Specialty", val: "private" },
+                ].map((chip) => (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    onClick={() => setOwnershipFilter(chip.val as any)}
+                    className={`px-2.5 py-1 rounded-[6px] text-[11px] font-semibold border transition-colors cursor-pointer ${
+                      ownershipFilter === chip.val
+                        ? "bg-burgundy-700 text-white border-burgundy-700 shadow-2xs"
+                        : "bg-bg text-ink-secondary border-[rgba(124,45,45,0.1)] hover:bg-blush"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <button
               type="submit"
-              className="flex items-center gap-2 bg-burgundy-700 hover:bg-burgundy-800 text-white text-[13px] font-bold px-5 py-2.5 rounded-[9px] transition-colors shadow-2xs ml-auto cursor-pointer"
+              className="flex items-center gap-2 bg-burgundy-700 hover:bg-burgundy-800 text-white text-[13px] font-bold px-5 py-2.5 rounded-[9px] transition-colors shadow-2xs ml-auto cursor-pointer mt-1"
             >
               {isBestMatchMode ? "Find Best Matches" : "Find Nearby Facilities"} <ArrowRight className="w-4 h-4" />
             </button>
-          </div>
         </form>
       </div>
 
@@ -479,11 +514,30 @@ function FindCareContent() {
               >
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="min-w-0 flex-1">
-                    {isBestMatch && (
-                      <div className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-burgundy-700 bg-blush border border-[rgba(124,45,45,0.15)] rounded px-2 py-0.5 mb-1.5">
-                        ★ BEST MATCH ({facility.matchScore}% Clinical Suitability)
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                      {isBestMatch && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-burgundy-700 bg-blush border border-[rgba(124,45,45,0.15)] rounded px-2 py-0.5">
+                          ★ BEST MATCH ({facility.matchScore}% Clinical Suitability)
+                        </span>
+                      )}
+                      {facility.isPmJayEmpaneled || facility.ownership === "private_empaneled" ? (
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded px-2 py-0.5 flex items-center gap-1">
+                          💳 PM-JAY Empaneled (Cashless)
+                        </span>
+                      ) : facility.ownership === "private" ? (
+                        <span className="text-[10px] font-bold text-blue-800 bg-blue-50 border border-blue-200 rounded px-2 py-0.5">
+                          🏥 Private Multi-Specialty
+                        </span>
+                      ) : facility.ownership === "trust" ? (
+                        <span className="text-[10px] font-bold text-purple-800 bg-purple-50 border border-purple-200 rounded px-2 py-0.5">
+                          🎗️ Trust Hospital
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-burgundy-800 bg-blush border border-[rgba(124,45,45,0.15)] rounded px-2 py-0.5">
+                          🏛️ Government (100% Free)
+                        </span>
+                      )}
+                    </div>
                     <h3 className="text-[17px] font-extrabold text-ink-primary">
                       {facility.name}
                     </h3>
@@ -557,7 +611,7 @@ function FindCareContent() {
                 <div className="flex items-center justify-between gap-3 pt-3 border-t border-[rgba(124,45,45,0.08)] flex-wrap">
                   <div className="text-[11.5px] text-ink-tertiary flex items-center gap-1.5">
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    {facility.state} Public Health
+                    {facility.accreditation || (facility.ownership === "government" ? `${facility.state} Public Health · Free Care` : "Ayushman Bharat PM-JAY Empaneled")}
                   </div>
 
                   <div className="flex items-center gap-2">

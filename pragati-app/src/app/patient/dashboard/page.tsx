@@ -216,10 +216,20 @@ export default function PatientDashboard() {
               className="p-4 rounded-[12px] bg-bg border border-[rgba(124,45,45,0.08)] flex flex-col justify-between hover:border-[rgba(124,45,45,0.18)] transition-all"
             >
               <div>
-                <div className="flex items-start justify-between gap-2 mb-1.5">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-burgundy-700 bg-white px-2 py-0.5 rounded border border-[rgba(124,45,45,0.1)]">
-                    {fac.type}
-                  </span>
+                <div className="flex items-start justify-between gap-2 mb-1.5 flex-wrap">
+                  {fac.isPmJayEmpaneled || fac.ownership === "private_empaneled" ? (
+                    <span className="text-[9.5px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-300">
+                      💳 PM-JAY Cashless
+                    </span>
+                  ) : fac.ownership === "private" ? (
+                    <span className="text-[9.5px] font-bold uppercase tracking-wider text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                      🏥 Private
+                    </span>
+                  ) : (
+                    <span className="text-[9.5px] font-bold uppercase tracking-wider text-burgundy-700 bg-white px-1.5 py-0.5 rounded border border-[rgba(124,45,45,0.1)]">
+                      {fac.type}
+                    </span>
+                  )}
                   <span className="text-[11px] font-extrabold text-burgundy-700 font-mono">
                     {fac.distanceKm} km away
                   </span>

@@ -1,5 +1,6 @@
 // ─── PRAGATI FACILITY SERVICE ──────────────────────────────────────────────
-// Backend-ready geospatial queries, nearby facility search, radius expansion, and clinical suitability ranking.
+// Backend-ready geospatial queries, nearby facility search, radius expansion,
+// and clinical suitability ranking supporting Government & PM-JAY Empaneled Private Hospitals.
 
 import { DEMO_FACILITIES, Facility } from "@/data/facilities";
 import { calculateDistance, calculateTravelMinutes } from "./locationService";
@@ -12,6 +13,7 @@ export interface NearbySearchParams {
   needQuery?: string;
   specialty?: string;
   isEmergency?: boolean;
+  ownershipFilter?: "all" | "government" | "private_empaneled" | "private" | "trust";
 }
 
 export interface NearbySearchResult {
@@ -32,7 +34,7 @@ export interface NearbySearchResult {
 /**
  * Searches for healthcare facilities near the specified GPS coordinates.
  * Automatically handles search radius expansion (10km -> 25km -> 50km).
- * Computes Haversine distances and suitability match scores.
+ * Computes Haversine distances, suitability match scores, and supports ownership filters.
  */
 export async function getNearbyFacilities({
   lat,
@@ -42,6 +44,7 @@ export async function getNearbyFacilities({
   needQuery = "",
   specialty = "",
   isEmergency = false,
+  ownershipFilter = "all",
 }: NearbySearchParams): Promise<NearbySearchResult> {
   const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
   const lastSyncTime = new Date().toLocaleTimeString("en-IN", {
@@ -55,17 +58,29 @@ export async function getNearbyFacilities({
     const travel = calculateTravelMinutes(dist);
     return {
       ...fac,
+      ownership: fac.ownership || "government",
       distanceKm: dist,
       travelMinutes: travel,
     };
   });
 
-  // If the user's GPS is in an area with no demo facilities within 25km,
-  // dynamically generate realistic nearby neighborhood facilities anchored to their exact coordinates
+  // If user's GPS is in an area with no demo facilities within 25km,
+  // dynamically generate realistic nearby neighborhood facilities (Government & PM-JAY Private)
   const closestDist = Math.min(...allWithDistance.map((f) => f.distanceKm || 9999));
   if (closestDist > 25) {
     const localGenerated = generateLocalNearbyFacilities(lat, lng, locality);
     allWithDistance = [...localGenerated, ...allWithDistance];
+  }
+
+  // Filter by ownership if specified
+  if (ownershipFilter !== "all") {
+    allWithDistance = allWithDistance.filter((f) => {
+      if (ownershipFilter === "government") return f.ownership === "government";
+      if (ownershipFilter === "private_empaneled") return f.ownership === "private_empaneled" || f.isPmJayEmpaneled;
+      if (ownershipFilter === "private") return f.ownership === "private" || f.ownership === "private_empaneled";
+      if (ownershipFilter === "trust") return f.ownership === "trust";
+      return true;
+    });
   }
 
   // Determine if we are in "Best Match" (clinical need/specialty filter) or "Nearby" (proximity only)
@@ -95,108 +110,117 @@ export async function getNearbyFacilities({
     isExpandedRadius = true;
   }
   if (inRadius.length === 0) {
-    // If still none in 50km, take the closest 4 available
-    inRadius = [...allWithDistance].sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0)).slice(0, 4);
+    inRadius = [...allWithDistance].sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0)).slice(0, 5);
     activeRadius = Math.ceil(inRadius[inRadius.length - 1]?.distanceKm || 50);
   }
 
-  // Calculate Match Score & Reasons for each facility
-  let scoredFacilities = inRadius.map((fac) => {
-    let score = 90;
+  // Calculate Match Score for each facility in radius
+  const scoredFacilities: Facility[] = inRadius.map((fac) => {
+    let score = 70; // baseline score
     const reasons: string[] = [];
     const warnings: string[] = [];
-
-    // Distance impact: -1 point per 2 km
-    const distPenalty = Math.min(15, Math.floor((fac.distanceKm || 0) / 2));
-    score -= distPenalty;
-
-    // Emergency capability
-    if (isEmergency) {
-      if (fac.emergencyCapability) {
-        score += 10;
-        reasons.push("24/7 Emergency trauma active");
-      } else {
-        score -= 30;
-        warnings.push("No 24/7 emergency trauma");
-      }
-    }
-
-    // Need matching: ECG
-    if (needsECG) {
-      const hasEcg = fac.diagnostics.some((d) => d.name.toLowerCase().includes("ecg") && d.status === "available");
-      if (hasEcg) {
-        score += 15;
-        reasons.push("12-Lead ECG Operational (~10m wait)");
-      } else {
-        score -= 20;
-        warnings.push("ECG machine limited/unavailable");
-      }
-    }
-
-    // Need matching: Cardiology
-    if (needsCardiology) {
-      const hasCardio = fac.doctors.some((d) => d.specialty.toLowerCase().includes("cardiology") && d.status === "available");
-      if (hasCardio) {
-        score += 15;
-        reasons.push("Cardiologist on duty (Dr. Ananya Rao / Specialist)");
-      } else if (fac.hasTelemedicine) {
-        score += 5;
-        reasons.push("Cardiology Specialist via PRAGATI Telemedicine");
-      } else {
-        score -= 15;
-        warnings.push("No Cardiology OPD on site");
-      }
-    }
-
-    // Need matching: X-Ray
-    if (needsXray) {
-      const hasXray = fac.diagnostics.some((d) => d.name.toLowerCase().includes("x-ray") && d.status === "available");
-      if (hasXray) {
-        score += 12;
-        reasons.push("Digital X-Ray active");
-      }
-    }
+    const fails: string[] = [];
 
     // Operating hours
     if (fac.isOpen) {
+      score += 10;
       reasons.push("Open now");
     } else {
-      score -= 25;
-      warnings.push("Facility currently closed for OPD");
+      score -= 30;
+      fails.push("Facility currently closed");
     }
 
-    // Queue wait
-    if (fac.queue && fac.queue.estimatedWait <= 15) {
+    // Emergency capability
+    if (isEmergency || needsECG) {
+      if (fac.emergencyCapability) {
+        score += 15;
+        reasons.push("24/7 Emergency & Trauma Active");
+      } else {
+        score -= 20;
+        warnings.push("No dedicated 24/7 emergency unit");
+      }
+    }
+
+    // PM-JAY Empanelment
+    if (fac.isPmJayEmpaneled) {
+      reasons.push("PM-JAY Cashless Eligible");
+    }
+
+    // Specialist match
+    if (needsCardiology) {
+      const hasCardio = fac.specialists.some((s) => s.toLowerCase().includes("cardio"));
+      const docCardio = fac.doctors.find((d) => d.specialty.toLowerCase().includes("cardio") && d.status === "available");
+      if (docCardio) {
+        score += 25;
+        reasons.push(`Cardiologist available (${docCardio.name})`);
+      } else if (hasCardio) {
+        score += 10;
+        warnings.push("Cardiology department available, doctor on call");
+      } else {
+        score -= 25;
+        fails.push("No Cardiology department at this tier");
+      }
+    }
+
+    if (needsPaediatrics) {
+      const docPed = fac.doctors.find((d) => d.specialty.toLowerCase().includes("paed") && d.status === "available");
+      if (docPed) {
+        score += 20;
+        reasons.push(`Paediatrician available (${docPed.name})`);
+      }
+    }
+
+    // Diagnostic match (ECG, X-Ray)
+    if (needsECG) {
+      const ecg = fac.diagnostics.find((d) => d.name.toLowerCase().includes("ecg"));
+      if (ecg && ecg.status === "available") {
+        score += 20;
+        reasons.push(`12-Lead ECG operational (~${ecg.waitTime || 10}m wait)`);
+      } else {
+        score -= 20;
+        fails.push("12-Lead ECG unavailable");
+      }
+    }
+
+    if (needsXray) {
+      const xray = fac.diagnostics.find((d) => d.name.toLowerCase().includes("x-ray") || d.name.toLowerCase().includes("xray"));
+      if (xray && xray.status === "available") {
+        score += 15;
+        reasons.push("Digital X-Ray operational");
+      }
+    }
+
+    // Distance factor (closer is better: -1 point per 2 km)
+    const dist = fac.distanceKm ?? 10;
+    score = Math.max(10, Math.min(99, score - Math.floor(dist / 2)));
+
+    // Low queue bonus
+    if (fac.queue && fac.queue.estimatedWait < 15) {
       reasons.push(`Low Queue (${fac.queue.estimatedWait} min wait)`);
     }
 
-    const finalScore = Math.min(99, Math.max(40, score));
-
     return {
       ...fac,
-      matchScore: isBestMatchMode ? finalScore : undefined,
-      matchReasons: reasons.length > 0 ? reasons : ["Public Health Facility", "Open for OPD"],
+      matchScore: Math.min(99, Math.max(10, score)),
+      matchReasons: reasons,
       matchWarnings: warnings,
+      matchFails: fails,
     };
   });
 
   // Sorting
+  let sortedFacilities: Facility[];
   if (isBestMatchMode) {
-    // Sort primarily by Match Score, secondarily by Distance
-    scoredFacilities.sort((a, b) => {
-      const scoreDiff = (b.matchScore || 0) - (a.matchScore || 0);
-      if (scoreDiff !== 0) return scoreDiff;
-      return (a.distanceKm || 0) - (b.distanceKm || 0);
-    });
+    sortedFacilities = scoredFacilities.sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0));
   } else {
-    // Pure "NEARBY" Mode: Sort strictly by distance from patient
-    scoredFacilities.sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
+    // Pure proximity sort (NEARBY mode)
+    sortedFacilities = scoredFacilities.sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
   }
 
   return {
-    facilities: scoredFacilities,
+    facilities: sortedFacilities,
     searchRadiusKm: activeRadius,
-    totalInRadius: scoredFacilities.length,
+    totalInRadius: sortedFacilities.length,
     isBestMatchMode,
     isExpandedRadius,
     queryAnalyzed: {
@@ -256,107 +280,197 @@ export async function getEmergencyFacilities(lat: number, lng: number): Promise<
 
 /**
  * Generates high-fidelity localized nearby facilities around any custom GPS coordinates
- * so testing from ANY arbitrary location in India (or worldwide) returns authentic nearby hospitals.
+ * spanning both Government, PM-JAY Empaneled Private, Trust, and Super-Specialty facilities.
  */
 function generateLocalNearbyFacilities(lat: number, lng: number, locality: string): Facility[] {
   const baseLoc = locality.split(",")[0] || "Local";
 
   return [
+    // 1. Government Urban / Primary Health Centre
     {
       id: `fac-local-001`,
-      name: `${baseLoc} District General Hospital`,
-      type: "District Hospital",
-      address: `Civil Hospital Road, ${locality}`,
+      name: `Government Primary Health Centre (UPHC), ${baseLoc}`,
+      type: "Urban Primary Health Centre",
+      ownership: "government",
+      accreditation: "Government Public Health · 100% Free Care",
+      address: `Main Clinic Road, ${locality}`,
       district: locality.split(",")[1]?.trim() || "District Hub",
       state: "Public Health Dept",
       pincode: "Verified",
-      lat: lat + 0.012,
-      lng: lng + 0.015,
-      phone: "020-221000",
-      hours: "Open 24/7 (Emergency & OPD)",
-      isOpen: true,
-      emergencyCapability: true,
-      services: ["24/7 Emergency Trauma", "Cardiology OPD", "12-Lead ECG", "Digital X-Ray", "Pathology Lab", "Central Pharmacy"],
-      specialists: ["Cardiology", "General Medicine", "Paediatrics", "Orthopaedics", "Emergency Medicine"],
-      hasTelemedicine: true,
-      lastUpdated: "Just now",
-      doctors: [
-        { id: "doc-loc-01", name: "Dr. Ananya Rao", specialty: "Cardiology", status: "available", nextSlot: "10:30 AM" },
-        { id: "doc-loc-02", name: "Dr. Prakash More", specialty: "General Medicine", status: "available", nextSlot: "10:45 AM" },
-      ],
-      diagnostics: [
-        { id: "diag-loc-01", name: "12-Lead ECG", status: "available", waitTime: 10 },
-        { id: "diag-loc-02", name: "Digital X-Ray", status: "available", waitTime: 15 },
-        { id: "diag-loc-03", name: "Blood Chemistry", status: "available", waitTime: 20 },
-      ],
-      medicines: [
-        { name: "Metoprolol 50mg", status: "available" },
-        { name: "Aspirin 75mg", status: "available" },
-        { name: "Atorvastatin 20mg", status: "available" },
-        { name: "Metformin 500mg", status: "available" },
-      ],
-      queue: { nowServing: 28, totalAhead: 2, estimatedWait: 12, lastUpdated: "Just now" },
-    },
-    {
-      id: `fac-local-002`,
-      name: `${baseLoc} Community Health Centre (CHC)`,
-      type: "Community Health Centre",
-      address: `Main Road, ${locality}`,
-      district: locality.split(",")[1]?.trim() || "District Hub",
-      state: "Public Health Dept",
-      pincode: "Verified",
-      lat: lat - 0.024,
-      lng: lng + 0.018,
-      phone: "020-221050",
-      hours: "Open 24/7 (Emergency & Daycare)",
-      isOpen: true,
-      emergencyCapability: true,
-      services: ["Emergency First Aid", "12-Lead ECG", "General OPD", "Digital X-Ray", "Maternity"],
-      specialists: ["General Medicine", "Paediatrics"],
-      hasTelemedicine: true,
-      lastUpdated: "Just now",
-      doctors: [
-        { id: "doc-loc-03", name: "Dr. Ganesh Shinde", specialty: "General Medicine", status: "available", nextSlot: "11:00 AM" },
-      ],
-      diagnostics: [
-        { id: "diag-loc-04", name: "12-Lead ECG", status: "available", waitTime: 8 },
-        { id: "diag-loc-05", name: "Rapid Glucose", status: "available", waitTime: 10 },
-      ],
-      medicines: [
-        { name: "Paracetamol 500mg", status: "available" },
-        { name: "Metformin 500mg", status: "available" },
-      ],
-      queue: { nowServing: 14, totalAhead: 1, estimatedWait: 8, lastUpdated: "Just now" },
-    },
-    {
-      id: `fac-local-003`,
-      name: `${baseLoc} Primary Health Centre (PHC)`,
-      type: "Primary Health Centre",
-      address: `Station Road, ${locality}`,
-      district: locality.split(",")[1]?.trim() || "District Hub",
-      state: "Public Health Dept",
-      pincode: "Verified",
-      lat: lat + 0.038,
-      lng: lng - 0.022,
-      phone: "020-221120",
+      lat: lat + 0.008,
+      lng: lng + 0.009,
+      phone: "044-245010",
       hours: "Mon–Sat, 8:00 AM – 5:00 PM",
       isOpen: true,
       emergencyCapability: false,
-      services: ["Primary Care", "12-Lead ECG Tele-Reported", "Immunization", "Blood Pressure Check"],
+      services: ["Primary Outpatient OPD", "12-Lead ECG", "Free Generic Medicines", "Immunization", "Maternal Health"],
       specialists: ["General Medicine"],
       hasTelemedicine: true,
       lastUpdated: "Just now",
       doctors: [
-        { id: "doc-loc-04", name: "Dr. Vijay Chavan", specialty: "General Medicine", status: "available", nextSlot: "10:15 AM" },
+        { id: "doc-loc-01", name: "Dr. S. Priya", specialty: "General Medicine", status: "available", nextSlot: "10:15 AM" },
       ],
       diagnostics: [
-        { id: "diag-loc-06", name: "12-Lead ECG (Tele-Reported)", status: "available", waitTime: 5 },
+        { id: "diag-loc-01", name: "12-Lead ECG", status: "available", waitTime: 5 },
+        { id: "diag-loc-02", name: "Blood Glucose & CBC", status: "available", waitTime: 10 },
       ],
       medicines: [
         { name: "Paracetamol 500mg", status: "available" },
+        { name: "Metformin 500mg", status: "available" },
         { name: "ORS Packets", status: "available" },
       ],
-      queue: { nowServing: 8, totalAhead: 1, estimatedWait: 5, lastUpdated: "Just now" },
+      queue: { nowServing: 9, totalAhead: 2, estimatedWait: 6, lastUpdated: "Just now" },
+    },
+
+    // 2. Ayushman Bharat PM-JAY Empaneled Private Multi-Specialty Hospital
+    {
+      id: `fac-local-002`,
+      name: `Care & Cure Multi-Specialty Hospital (PM-JAY Empaneled)`,
+      type: "Private Multi-Specialty Hospital",
+      ownership: "private_empaneled",
+      isPmJayEmpaneled: true,
+      accreditation: "NABH Accredited · Ayushman Bharat PM-JAY Empaneled (Cashless)",
+      address: `Expressway Healthcare Corridor, ${locality}`,
+      district: locality.split(",")[1]?.trim() || "District Hub",
+      state: "Public Health Network",
+      pincode: "Verified",
+      lat: lat + 0.016,
+      lng: lng + 0.021,
+      phone: "044-245880",
+      hours: "Open 24/7 (Emergency, ICU & OPD)",
+      isOpen: true,
+      emergencyCapability: true,
+      services: ["24/7 Emergency Trauma", "Cardiology OPD & Cath Lab", "12-Lead ECG", "Digital X-Ray", "CT Scan (32-Slice)", "ICU & CCU", "Cashless PM-JAY Desk"],
+      specialists: ["Cardiology", "General Medicine", "Orthopaedics", "Paediatrics", "General Surgery"],
+      hasTelemedicine: true,
+      lastUpdated: "Just now",
+      doctors: [
+        { id: "doc-loc-02", name: "Dr. K. Ravichandran, MD, DM", specialty: "Cardiology", status: "available", nextSlot: "10:30 AM" },
+        { id: "doc-loc-03", name: "Dr. Deepa Sundaram", specialty: "General Medicine", status: "available", nextSlot: "10:45 AM" },
+        { id: "doc-loc-04", name: "Dr. A. Venkatesh", specialty: "Orthopaedics", status: "available", nextSlot: "11:15 AM" },
+      ],
+      diagnostics: [
+        { id: "diag-loc-03", name: "12-Lead ECG", status: "available", waitTime: 5 },
+        { id: "diag-loc-04", name: "Digital X-Ray", status: "available", waitTime: 10 },
+        { id: "diag-loc-05", name: "CT Scan", status: "available", waitTime: 20 },
+      ],
+      medicines: [
+        { name: "Metoprolol 50mg", status: "available" },
+        { name: "Atorvastatin 20mg", status: "available" },
+        { name: "Aspirin 75mg", status: "available" },
+        { name: "Metformin 500mg", status: "available" },
+      ],
+      queue: { nowServing: 16, totalAhead: 3, estimatedWait: 10, lastUpdated: "Just now" },
+    },
+
+    // 3. Government Peripheral & Community Health Centre
+    {
+      id: `fac-local-003`,
+      name: `Government Peripheral Hospital & Community Health Centre, ${baseLoc}`,
+      type: "Community Health Centre",
+      ownership: "government",
+      accreditation: "Government Public Health · 100% Free Care",
+      address: `Hospital Road, ${locality}`,
+      district: locality.split(",")[1]?.trim() || "District Hub",
+      state: "Public Health Dept",
+      pincode: "Verified",
+      lat: lat - 0.022,
+      lng: lng + 0.015,
+      phone: "044-245050",
+      hours: "Open 24/7 (Emergency & Daycare)",
+      isOpen: true,
+      emergencyCapability: true,
+      services: ["Emergency First Aid", "12-Lead ECG", "General Medicine OPD", "Digital X-Ray", "Maternity Wing", "Free Pharmacy"],
+      specialists: ["General Medicine", "Paediatrics", "Obstetrics & Gynaecology"],
+      hasTelemedicine: true,
+      lastUpdated: "Just now",
+      doctors: [
+        { id: "doc-loc-05", name: "Dr. V. Murugan", specialty: "General Medicine", status: "available", nextSlot: "11:00 AM" },
+      ],
+      diagnostics: [
+        { id: "diag-loc-06", name: "12-Lead ECG", status: "available", waitTime: 8 },
+        { id: "diag-loc-07", name: "Digital X-Ray", status: "available", waitTime: 15 },
+      ],
+      medicines: [
+        { name: "Paracetamol 500mg", status: "available" },
+        { name: "Metformin 500mg", status: "available" },
+      ],
+      queue: { nowServing: 22, totalAhead: 2, estimatedWait: 10, lastUpdated: "Just now" },
+    },
+
+    // 4. Private Super-Specialty Hospital & Trauma Institute
+    {
+      id: `fac-local-004`,
+      name: `Apollo Reach Super-Specialty Hospital & Trauma Centre`,
+      type: "Super-Specialty Hospital",
+      ownership: "private",
+      isPmJayEmpaneled: true,
+      accreditation: "NABH Accredited · Ayushman Bharat PM-JAY & TPA Cashless",
+      address: `OMR IT Highway, ${locality}`,
+      district: locality.split(",")[1]?.trim() || "District Hub",
+      state: "Private Health Network",
+      pincode: "Verified",
+      lat: lat + 0.034,
+      lng: lng + 0.028,
+      phone: "044-245999",
+      hours: "Open 24/7 (Emergency, Trauma & Advanced Care)",
+      isOpen: true,
+      emergencyCapability: true,
+      services: ["24/7 Level-1 Trauma", "Interventional Cardiology", "Neurology & Stroke Unit", "MRI (1.5T)", "CT Scan", "Cath Lab", "Dialysis Unit"],
+      specialists: ["Cardiology", "Neurology", "Orthopaedics", "Emergency Medicine", "General Surgery"],
+      hasTelemedicine: true,
+      lastUpdated: "Just now",
+      doctors: [
+        { id: "doc-loc-06", name: "Dr. Rajeshwar Rao, MCh", specialty: "Cardiology", status: "available", nextSlot: "11:30 AM" },
+        { id: "doc-loc-07", name: "Dr. Meenakshi S.", specialty: "Neurology", status: "available", nextSlot: "12:00 PM" },
+      ],
+      diagnostics: [
+        { id: "diag-loc-08", name: "12-Lead ECG", status: "available", waitTime: 5 },
+        { id: "diag-loc-09", name: "CT Scan", status: "available", waitTime: 15 },
+        { id: "diag-loc-10", name: "MRI (1.5T)", status: "available", waitTime: 30 },
+      ],
+      medicines: [
+        { name: "Metoprolol 50mg", status: "available" },
+        { name: "Atorvastatin 20mg", status: "available" },
+        { name: "Aspirin 75mg", status: "available" },
+      ],
+      queue: { nowServing: 11, totalAhead: 1, estimatedWait: 6, lastUpdated: "Just now" },
+    },
+
+    // 5. Charitable / Mission Trust Hospital
+    {
+      id: `fac-local-005`,
+      name: `Seva Trust Charitable Multi-Specialty Hospital`,
+      type: "Trust Hospital",
+      ownership: "trust",
+      isPmJayEmpaneled: true,
+      accreditation: "Non-Profit Trust · Subsidized Care & PM-JAY Cashless",
+      address: `Gandhi Road, ${locality}`,
+      district: locality.split(",")[1]?.trim() || "District Hub",
+      state: "Charitable Trust Network",
+      pincode: "Verified",
+      lat: lat - 0.038,
+      lng: lng - 0.019,
+      phone: "044-245444",
+      hours: "Open 24/7 (Emergency & Dialysis)",
+      isOpen: true,
+      emergencyCapability: true,
+      services: ["Subsidized Dialysis", "12-Lead ECG", "Digital X-Ray", "General OPD", "Ophthalmology / Eye Care", "PM-JAY Desk"],
+      specialists: ["General Medicine", "Ophthalmology", "Nephrology"],
+      hasTelemedicine: true,
+      lastUpdated: "Just now",
+      doctors: [
+        { id: "doc-loc-08", name: "Dr. K. Swaminathan", specialty: "General Medicine", status: "available", nextSlot: "10:30 AM" },
+      ],
+      diagnostics: [
+        { id: "diag-loc-11", name: "12-Lead ECG", status: "available", waitTime: 5 },
+        { id: "diag-loc-12", name: "Digital X-Ray", status: "available", waitTime: 10 },
+      ],
+      medicines: [
+        { name: "Paracetamol 500mg", status: "available" },
+        { name: "Metformin 500mg", status: "available" },
+      ],
+      queue: { nowServing: 18, totalAhead: 2, estimatedWait: 8, lastUpdated: "Just now" },
     },
   ];
 }
