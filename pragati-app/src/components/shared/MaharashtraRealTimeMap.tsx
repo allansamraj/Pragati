@@ -77,19 +77,24 @@ interface MapProps {
 }
 
 export function MaharashtraRealTimeMap({ onSelectDistrict, selectedId }: MapProps) {
-  const { governmentLocation } = useLocationContext();
+  const { governmentLocation, patientLocation } = useLocationContext();
   const state = governmentLocation?.state || "Tamil Nadu";
   const isTamilNadu = state.toLowerCase().includes("tamil") || state.toLowerCase().includes("chennai");
 
   const [zoneView, setZoneView] = useState<"state" | "city">("state");
+  const [zoomLevel, setZoomLevel] = useState<"exact" | "district" | "state">("exact");
+  const [customGps, setCustomGps] = useState<{ lat: number; lng: number; name: string } | null>(null);
 
   const activeDistrictList = isTamilNadu
     ? (zoneView === "city" ? CHENNAI_ZONES : TAMIL_NADU_DISTRICTS)
     : MAHARASHTRA_DISTRICTS;
 
+  // Derive default focus matching governmentLocation.district (e.g. Chennai)
   const defaultFocus = isTamilNadu
-    ? (zoneView === "city" ? CHENNAI_ZONES[0] : TAMIL_NADU_DISTRICTS[10]) // Dharmapuri default focus (gap) or Chennai Central
-    : MAHARASHTRA_DISTRICTS[11]; // Nandurbar default
+    ? (zoneView === "city" 
+        ? CHENNAI_ZONES[0] 
+        : (TAMIL_NADU_DISTRICTS.find(d => d.name.toLowerCase().includes(governmentLocation?.district?.toLowerCase() || "chennai")) || TAMIL_NADU_DISTRICTS[0]))
+    : MAHARASHTRA_DISTRICTS[0];
 
   const [activeDistrict, setActiveDistrict] = useState<DistrictMetric>(
     activeDistrictList.find((d) => d.id === selectedId) || defaultFocus
@@ -97,28 +102,92 @@ export function MaharashtraRealTimeMap({ onSelectDistrict, selectedId }: MapProp
   const [filter, setFilter] = useState<"all" | AccessLevel>("all");
 
   useEffect(() => {
-    setActiveDistrict(
-      activeDistrictList.find((d) => d.id === selectedId) || defaultFocus
-    );
-  }, [zoneView, state, selectedId]);
+    if (selectedId) {
+      const match = activeDistrictList.find((d) => d.id === selectedId);
+      if (match) setActiveDistrict(match);
+    } else {
+      setActiveDistrict(defaultFocus);
+    }
+  }, [zoneView, state, selectedId, governmentLocation?.district]);
 
   const filteredDistricts = activeDistrictList.filter(
     (d) => filter === "all" || d.access === filter
   );
 
-  // Live OpenStreetMap embed coordinates dynamically set according to state & district:
-  // Tamil Nadu Bounding Box: bbox=76.1,8.1,80.6,13.8
-  // Chennai City Bounding Box: bbox=80.14,12.92,80.34,13.16
-  // Maharashtra Bounding Box: bbox=72.6,15.6,80.9,22.1
-  const bbox = isTamilNadu
-    ? (zoneView === "city" ? "80.14,12.92,80.34,13.16" : "76.1,8.1,80.6,13.8")
-    : "72.6,15.6,80.9,22.1";
+  const currentTarget = customGps || {
+    lat: activeDistrict.lat,
+    lng: activeDistrict.lng,
+    name: activeDistrict.name,
+  };
 
-  const mapIframeSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${activeDistrict.lat},${activeDistrict.lng}`;
+  // Calculate precise bounding box centered exactly on the location:
+  // - "exact": ~2-4 km radius (shows local street grid, landmarks, hospital campus)
+  // - "district": ~20-30 km radius (shows whole district and surrounding talukas)
+  // - "state": broad state overview
+  let deltaLng = 0.035;
+  let deltaLat = 0.025;
+
+  if (zoomLevel === "exact") {
+    deltaLng = zoneView === "city" ? 0.025 : 0.045;
+    deltaLat = zoneView === "city" ? 0.018 : 0.035;
+  } else if (zoomLevel === "district") {
+    deltaLng = 0.22;
+    deltaLat = 0.18;
+  } else {
+    // Statewide overview
+    if (isTamilNadu) {
+      deltaLng = 2.4;
+      deltaLat = 2.8;
+    } else {
+      deltaLng = 4.2;
+      deltaLat = 3.2;
+    }
+  }
+
+  const minLng = (currentTarget.lng - deltaLng).toFixed(4);
+  const minLat = (currentTarget.lat - deltaLat).toFixed(4);
+  const maxLng = (currentTarget.lng + deltaLng).toFixed(4);
+  const maxLat = (currentTarget.lat + deltaLat).toFixed(4);
+
+  const bbox = `${minLng},${minLat},${maxLng},${maxLat}`;
+  const mapIframeSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${currentTarget.lat},${currentTarget.lng}`;
 
   const handleSelect = (d: DistrictMetric) => {
+    setCustomGps(null);
     setActiveDistrict(d);
     if (onSelectDistrict) onSelectDistrict(d);
+  };
+
+  const handleDetectLocation = () => {
+    if (typeof window !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setCustomGps({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            name: "Current GPS Location",
+          });
+          setZoomLevel("exact");
+        },
+        () => {
+          // Fallback to patient / demo GPS location
+          setCustomGps({
+            lat: patientLocation.lat,
+            lng: patientLocation.lng,
+            name: `${patientLocation.locality}, ${patientLocation.district}`,
+          });
+          setZoomLevel("exact");
+        },
+        { timeout: 5000 }
+      );
+    } else {
+      setCustomGps({
+        lat: patientLocation.lat,
+        lng: patientLocation.lng,
+        name: `${patientLocation.locality}, ${patientLocation.district}`,
+      });
+      setZoomLevel("exact");
+    }
   };
 
   return (
@@ -129,9 +198,9 @@ export function MaharashtraRealTimeMap({ onSelectDistrict, selectedId }: MapProp
           {isTamilNadu && (
             <div className="flex items-center bg-bg border border-[rgba(124,45,45,0.12)] p-0.5 rounded-[8px] mr-1">
               <button
-                onClick={() => setZoneView("state")}
+                onClick={() => { setZoneView("state"); setCustomGps(null); }}
                 className={`text-[11px] font-bold px-2.5 py-1 rounded-[6px] transition-all cursor-pointer ${
-                  zoneView === "state"
+                  zoneView === "state" && !customGps
                     ? "bg-burgundy-700 text-white shadow-2xs"
                     : "text-ink-secondary hover:text-ink-primary"
                 }`}
@@ -139,9 +208,9 @@ export function MaharashtraRealTimeMap({ onSelectDistrict, selectedId }: MapProp
                 Tamil Nadu ({TAMIL_NADU_DISTRICTS.length})
               </button>
               <button
-                onClick={() => setZoneView("city")}
+                onClick={() => { setZoneView("city"); setCustomGps(null); }}
                 className={`text-[11px] font-bold px-2.5 py-1 rounded-[6px] transition-all cursor-pointer ${
-                  zoneView === "city"
+                  zoneView === "city" && !customGps
                     ? "bg-burgundy-700 text-white shadow-2xs"
                     : "text-ink-secondary hover:text-ink-primary"
                 }`}
@@ -166,46 +235,86 @@ export function MaharashtraRealTimeMap({ onSelectDistrict, selectedId }: MapProp
           ))}
         </div>
 
-        <div className="flex items-center gap-2 text-[11px] text-ink-tertiary">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" /> &gt;75%
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-amber-500" /> 50–74%
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-rose-500" /> &lt;50%
-          </span>
+        {/* Zoom Scope Controls */}
+        <div className="flex items-center gap-1.5 bg-white border border-[rgba(124,45,45,0.12)] p-1 rounded-[8px]">
+          <button
+            onClick={() => setZoomLevel("exact")}
+            className={`text-[10.5px] font-bold px-2.5 py-1 rounded-[5px] transition-all cursor-pointer flex items-center gap-1 ${
+              zoomLevel === "exact"
+                ? "bg-burgundy-700 text-white shadow-2xs"
+                : "text-ink-secondary hover:bg-blush"
+            }`}
+            title="Focus directly on exact town / local health hub"
+          >
+            🎯 Exact Local View
+          </button>
+          <button
+            onClick={() => setZoomLevel("district")}
+            className={`text-[10.5px] font-bold px-2.5 py-1 rounded-[5px] transition-all cursor-pointer ${
+              zoomLevel === "district"
+                ? "bg-burgundy-700 text-white shadow-2xs"
+                : "text-ink-secondary hover:bg-blush"
+            }`}
+            title="View full district catchment"
+          >
+            📍 District View
+          </button>
+          <button
+            onClick={() => setZoomLevel("state")}
+            className={`text-[10.5px] font-bold px-2.5 py-1 rounded-[5px] transition-all cursor-pointer ${
+              zoomLevel === "state"
+                ? "bg-burgundy-700 text-white shadow-2xs"
+                : "text-ink-secondary hover:bg-blush"
+            }`}
+            title="View entire state overview"
+          >
+            🌐 State View
+          </button>
         </div>
       </div>
 
       {/* Real Map Canvas Container */}
-      <div className="relative bg-[#E8E2D9] rounded-[12px] overflow-hidden border border-[rgba(124,45,45,0.12)] h-[440px] shadow-2xs">
-        {/* Real OpenStreetMap Live Iframe Embed */}
+      <div className="relative bg-[#E8E2D9] rounded-[12px] overflow-hidden border border-[rgba(124,45,45,0.12)] h-[460px] shadow-2xs">
+        {/* Real OpenStreetMap Live Iframe Embed Centered on Exact Location */}
         <iframe
-          title={`${state} Healthcare Surveillance Map`}
+          key={`${currentTarget.lat}-${currentTarget.lng}-${zoomLevel}`}
+          title={`${currentTarget.name} Healthcare Surveillance Map`}
           src={mapIframeSrc}
           className="w-full h-full border-0"
           loading="lazy"
         />
 
-        {/* Live Top Ribbon */}
+        {/* Live Top Ribbon with Exact GPS Coordinates */}
         <div className="absolute top-2.5 inset-x-2.5 z-10 bg-white/95 backdrop-blur-md border border-[rgba(124,45,45,0.12)] rounded-[8px] px-3 py-2 flex items-center justify-between shadow-sm text-[11.5px]">
           <div className="flex items-center gap-2 font-bold text-ink-primary truncate">
             <Navigation className="w-3.5 h-3.5 text-burgundy-700 flex-shrink-0" />
-            <span>Surveillance Focus: {activeDistrict.name}</span>
+            <span>Exact Location: <strong className="text-burgundy-800">{currentTarget.name}</strong></span>
+            <span className="text-[10px] font-mono text-ink-tertiary bg-bg px-1.5 py-0.5 rounded border border-[rgba(124,45,45,0.1)]">
+              {currentTarget.lat.toFixed(4)}°N, {currentTarget.lng.toFixed(4)}°E
+            </span>
             <span className={`text-[10px] font-bold px-2 py-0.2 rounded border ${ACCESS_CONFIG[activeDistrict.access].badge}`}>
               {activeDistrict.score}% Accessibility
             </span>
           </div>
-          <a
-            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeDistrict.name + ", " + state)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[11px] font-bold text-burgundy-700 hover:underline flex items-center gap-1 flex-shrink-0"
-          >
-            Google Maps <ExternalLink className="w-3 h-3" />
-          </a>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={handleDetectLocation}
+              className="text-[11px] font-bold text-ink-primary bg-bg hover:bg-blush border border-[rgba(124,45,45,0.15)] rounded-[6px] px-2.5 py-1 flex items-center gap-1 transition-colors cursor-pointer"
+              title="Detect and center current location"
+            >
+              <Compass className="w-3 h-3 text-rose-600" />
+              <span>My GPS</span>
+            </button>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${currentTarget.lat},${currentTarget.lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] font-bold text-burgundy-700 hover:underline flex items-center gap-1"
+            >
+              Google Maps <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
         </div>
 
         {/* Floating District Selector Cards on Bottom */}
@@ -217,6 +326,9 @@ export function MaharashtraRealTimeMap({ onSelectDistrict, selectedId }: MapProp
                 <div className="flex items-center gap-2">
                   <h4 className="font-bold text-[14px] text-ink-primary">{activeDistrict.name}</h4>
                   <span className="text-[10px] font-semibold text-ink-tertiary">({activeDistrict.division})</span>
+                  <span className="text-[10px] font-mono text-ink-secondary bg-bg px-1.5 py-0.5 rounded border border-[rgba(124,45,45,0.08)]">
+                    GPS: {activeDistrict.lat.toFixed(4)}, {activeDistrict.lng.toFixed(4)}
+                  </span>
                 </div>
                 <div className="text-[11.5px] text-ink-secondary mt-0.5">
                   Facilities: <strong>{activeDistrict.facilitiesCount} Monitored</strong> · Specialists: <strong>{activeDistrict.specialists}</strong> · Medicines: <strong>{activeDistrict.medicines}</strong>
@@ -241,14 +353,14 @@ export function MaharashtraRealTimeMap({ onSelectDistrict, selectedId }: MapProp
               </div>
             )}
 
-            {/* Quick District Buttons */}
+            {/* Quick District / Zone Buttons */}
             <div className="flex gap-1 pt-2 overflow-x-auto pb-0.5">
               {filteredDistricts.map((d) => (
                 <button
                   key={d.id}
                   onClick={() => handleSelect(d)}
                   className={`px-2.5 py-1 rounded-[6px] text-[10.5px] font-bold border transition-all cursor-pointer flex-shrink-0 flex items-center gap-1 ${
-                    activeDistrict.id === d.id
+                    activeDistrict.id === d.id && !customGps
                       ? "bg-burgundy-700 text-white border-burgundy-700 shadow-2xs"
                       : "bg-white text-ink-secondary border-[rgba(124,45,45,0.12)] hover:bg-blush"
                   }`}
