@@ -72,7 +72,9 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
 
     // Patient Dashboard
     "patient.dashboard.title": "Your Health Overview",
-    "patient.dashboard.goodMorning": "Good Morning",
+    "patient.dashboard.goodMorning": "Good morning",
+    "patient.dashboard.goodAfternoon": "Good afternoon",
+    "patient.dashboard.goodEvening": "Good evening",
     "patient.dashboard.welcome": "Welcome back",
     "patient.dashboard.tokenLabel": "Current OPD Token",
     "patient.dashboard.waitLabel": "Estimated Wait",
@@ -307,6 +309,8 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     // Patient Dashboard
     "patient.dashboard.title": "तुमचा आरोग्य आढावा",
     "patient.dashboard.goodMorning": "शुभ प्रभात",
+    "patient.dashboard.goodAfternoon": "शुभ दुपार",
+    "patient.dashboard.goodEvening": "शुभ संध्याकाळ",
     "patient.dashboard.welcome": "पुन्हा स्वागत आहे",
     "patient.dashboard.tokenLabel": "सध्याचा OPD टोकन",
     "patient.dashboard.waitLabel": "अंदाजित प्रतीक्षा वेळ",
@@ -540,7 +544,9 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
 
     // Patient Dashboard
     "patient.dashboard.title": "आपका स्वास्थ्य अवलोकन",
-    "patient.dashboard.goodMorning": "सुप्रभात",
+    "patient.dashboard.goodMorning": "शुभ प्रभात",
+    "patient.dashboard.goodAfternoon": "शुभ दोपहर",
+    "patient.dashboard.goodEvening": "शुभ संध्या",
     "patient.dashboard.welcome": "वापसी पर स्वागत",
     "patient.dashboard.tokenLabel": "वर्तमान OPD टोकन",
     "patient.dashboard.waitLabel": "अनुमानित प्रतीक्षा समय",
@@ -775,6 +781,8 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     // Patient Dashboard
     "patient.dashboard.title": "உங்கள் சுகாதார கண்ணோட்டம்",
     "patient.dashboard.goodMorning": "காலை வணக்கம்",
+    "patient.dashboard.goodAfternoon": "மதிய வணக்கம்",
+    "patient.dashboard.goodEvening": "மாலை வணக்கம்",
     "patient.dashboard.welcome": "மீண்டும் வரவேற்கிறோம்",
     "patient.dashboard.tokenLabel": "தற்போதைய OPD டோக்கன்",
     "patient.dashboard.waitLabel": "மதிப்பிடப்பட்ட காத்திருப்பு நேரம்",

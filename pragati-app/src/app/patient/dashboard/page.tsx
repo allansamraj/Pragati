@@ -92,7 +92,12 @@ export default function PatientDashboard() {
   const token = DEMO_PATIENT.activeToken!;
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? t("patient.dashboard.goodMorning") : hour < 17 ? "Good afternoon" : "Good evening";
+  const greeting =
+    hour < 12
+      ? t("patient.dashboard.goodMorning")
+      : hour < 17
+      ? t("patient.dashboard.goodAfternoon")
+      : t("patient.dashboard.goodEvening");
 
   // Take top 3 facilities closest to patient
   const closestFacilities = nearbyFacilities.slice(0, 3);
