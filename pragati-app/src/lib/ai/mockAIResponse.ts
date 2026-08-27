@@ -325,7 +325,7 @@ function handlePatientQuery(
       id: msgId,
       sender: "assistant",
       text:
-        `You currently have ${meds.length} active medications prescribed by Dr. Ananya Rao at Nandurbar District Civil Hospital:\n\n${medLines}\n\n` +
+        `You currently have ${meds.length} active medications prescribed by Dr. Ananya Natarajan at Government General Hospital, Chennai:\n\n${medLines}\n\n` +
         `💡 You can reserve refills or view digital barcodes in your prescription wallet.`,
       timestamp,
       role: "patient",
@@ -601,7 +601,7 @@ function handleDoctorQuery(
       },
       suggestedPrompts: [
         "Show today's appointments",
-        "View patient summary for Arjun Deshmukh",
+        "View patient summary for Arun Sundaram",
         "Issue digital prescription",
       ],
     };
@@ -641,7 +641,7 @@ function handleDoctorQuery(
       suggestedPrompts: [
         "How many patients are waiting for me?",
         "Show today's appointments",
-        "View patient summary for Arjun Deshmukh",
+        "View patient summary for Arun Sundaram",
       ],
     };
   }
@@ -663,8 +663,8 @@ function handleDoctorQuery(
     };
   }
 
-  if (q.includes("arjun") || q.includes("deshmukh") || q.includes("history") || q.includes("record")) {
-    const pt = doctorTools.getPatientSummary("Arjun Deshmukh");
+  if (q.includes("arun") || q.includes("sundaram") || q.includes("arjun") || q.includes("history") || q.includes("record")) {
+    const pt = doctorTools.getPatientSummary("Arun Sundaram");
     return {
       id: msgId,
       sender: "assistant",
@@ -696,7 +696,7 @@ function handleDoctorQuery(
     suggestedPrompts: [
       "How many patients are waiting for me?",
       "Show today's appointments",
-      "View patient summary for Arjun Deshmukh",
+      "View patient summary for Arun Sundaram",
     ],
   };
 }

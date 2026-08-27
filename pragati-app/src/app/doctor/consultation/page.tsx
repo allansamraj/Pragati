@@ -16,7 +16,7 @@ export default function DoctorConsultationPage() {
   ]);
 
   const [notes, setNotes] = useState(
-    "Patient Arjun Deshmukh (Chennai) presenting with mild chest discomfort on exertion. ECG shows normal sinus rhythm. Advised low sodium diet, regular walking, and 30-day medication compliance."
+    "Patient Arun Sundaram (Chennai) presenting with mild chest discomfort on exertion. ECG shows normal sinus rhythm. Advised low sodium diet, regular walking, and 30-day medication compliance."
   );
 
   const addMed = () => {
@@ -38,11 +38,11 @@ export default function DoctorConsultationPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-[rgba(124,45,45,0.09)] rounded-[12px] p-4 shadow-2xs">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-[8px] bg-emerald-50 border border-emerald-200 flex items-center justify-center font-bold text-emerald-800 text-[14px]">
-            AD
+            AS
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-[17px] font-bold text-ink-primary">Arjun Deshmukh</h1>
+              <h1 className="text-[17px] font-bold text-ink-primary">Arun Sundaram</h1>
               <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
                 Token #41 · Active
               </span>

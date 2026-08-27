@@ -5,10 +5,10 @@ import { Share2, ArrowRight, CheckCircle2, Clock, Building2 } from "lucide-react
 
 export default function GovernmentReferralsPage() {
   const referrals = [
-    { id: "ref-01", patient: "Arjun Deshmukh (54y)", from: "Dhadgaon Rural PHC Hub", to: "Nandurbar District Hospital", specialty: "Cardiology", reason: "Exertional Angina / ECG Evaluation", urgency: "High Urgency", status: "In Transit / Accepted" },
-    { id: "ref-02", patient: "Meera Patil (32y)", from: "Akkalkuwa PHC", to: "Nandurbar District Hospital", specialty: "Obstetrics", reason: "High-Risk Antenatal Care", urgency: "Medium Urgency", status: "Confirmed Slot" },
-    { id: "ref-03", patient: "Suresh Jadhav (61y)", from: "Mokhada PHC", to: "Jawhar Sub-District Hospital", specialty: "Orthopedics", reason: "Fracture Stabilization", urgency: "High Urgency", status: "Admitted" },
-    { id: "ref-04", patient: "Pooja Gavit (24y)", from: "Toranmal PHC", to: "Dhule Government Medical College", specialty: "Neurology", reason: "Seizure Workup", urgency: "Urgent", status: "Pending Tertiary Bed" },
+    { id: "ref-01", patient: "Arun Sundaram (54y)", from: "Government UPHC Triplicane", to: "Government General Hospital, Chennai", specialty: "Cardiology", reason: "Exertional Angina / ECG Evaluation", urgency: "High Urgency", status: "In Transit / Accepted" },
+    { id: "ref-02", patient: "Meera Sundaram (32y)", from: "Royapettah Urban Clinic", to: "Omandurar Multi Super Speciality Hospital", specialty: "Obstetrics", reason: "High-Risk Antenatal Care", urgency: "Medium Urgency", status: "Confirmed Slot" },
+    { id: "ref-03", patient: "Suresh Balachandran (61y)", from: "Park Town Dispensary", to: "Government Stanley Medical College Hospital", specialty: "Orthopaedics", reason: "Fracture Stabilization", urgency: "High Urgency", status: "Admitted" },
+    { id: "ref-04", patient: "Poongodi Ganesan (24y)", from: "Teynampet Health Post", to: "Madras Medical College Hub", specialty: "Neurology", reason: "Seizure Workup", urgency: "Urgent", status: "Pending Tertiary Bed" },
   ];
 
   return (

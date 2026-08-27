@@ -11,12 +11,12 @@ export default function DoctorQueuePage() {
   const [filter, setFilter] = useState<"all" | "urgent" | "waiting">("all");
 
   const [patients, setPatients] = useState([
-    { token: 41, name: "Arjun Deshmukh", age: "54y", gender: "M", complaint: "Chest discomfort, hypertension (Triplicane)", priority: "urgent", status: "in-consultation", wait: "Now" },
-    { token: 42, name: "Sunita Kulkarni", age: "48y", gender: "F", complaint: "Palpitations, post-ECG review (Royapettah)", priority: "urgent", status: "waiting", wait: "5 min" },
-    { token: 43, name: "Ganesh Patil", age: "62y", gender: "M", complaint: "Routine cardiac medication review (Park Town)", priority: "routine", status: "waiting", wait: "15 min" },
-    { token: 44, name: "Anjali Shinde", age: "39y", gender: "F", complaint: "Mild dyspnea on exertion (Teynampet)", priority: "routine", status: "waiting", wait: "25 min" },
-    { token: 45, name: "Ramesh Gaikwad", age: "55y", gender: "M", complaint: "Follow-up after angiography (Adyar)", priority: "urgent", status: "waiting", wait: "35 min" },
-    { token: 46, name: "Pooja Chavan", age: "51y", gender: "F", complaint: "Chest tightness, diabetic check (Anna Nagar)", priority: "urgent", status: "waiting", wait: "45 min" },
+    { token: 41, name: "Arun Sundaram", age: "54y", gender: "M", complaint: "Chest discomfort, hypertension (Triplicane)", priority: "urgent", status: "in-consultation", wait: "Now" },
+    { token: 42, name: "Sundari Karthikeyan", age: "48y", gender: "F", complaint: "Palpitations, post-ECG review (Royapettah)", priority: "urgent", status: "waiting", wait: "5 min" },
+    { token: 43, name: "Ganesan Palanisamy", age: "62y", gender: "M", complaint: "Routine cardiac medication review (Park Town)", priority: "routine", status: "waiting", wait: "15 min" },
+    { token: 44, name: "Anjalai Shanmugam", age: "39y", gender: "F", complaint: "Mild dyspnea on exertion (Teynampet)", priority: "routine", status: "waiting", wait: "25 min" },
+    { token: 45, name: "Ramesh Govindarajan", age: "55y", gender: "M", complaint: "Follow-up after angiography (Adyar)", priority: "urgent", status: "waiting", wait: "35 min" },
+    { token: 46, name: "Poongodi Chandran", age: "51y", gender: "F", complaint: "Chest tightness, diabetic check (Anna Nagar)", priority: "urgent", status: "waiting", wait: "45 min" },
   ]);
 
   const callNext = () => {

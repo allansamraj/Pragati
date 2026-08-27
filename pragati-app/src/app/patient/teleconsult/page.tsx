@@ -47,10 +47,10 @@ export default function TeleconsultPage() {
             </span>
           </div>
           <h1 className="text-[20px] font-bold text-ink-primary">
-            Dhadgaon Rural PHC Hub <span className="text-burgundy-600 font-mono">⟷</span> Nandurbar District Civil Hospital
+            Triplicane UPHC Spoke <span className="text-burgundy-600 font-mono">⟷</span> Government General Hospital, Chennai
           </h1>
           <p className="text-[12px] text-ink-secondary mt-0.5">
-            Connecting Patient <strong className="text-ink-primary">Arjun Deshmukh (54y, Nandurbar)</strong> with Specialist <strong className="text-ink-primary">Dr. Ananya Rao (Cardiology)</strong>
+            Connecting Patient <strong className="text-ink-primary">Arun Sundaram (54y, Chennai)</strong> with Specialist <strong className="text-ink-primary">Dr. Ananya Natarajan (Cardiology)</strong>
           </p>
         </div>
 
@@ -77,8 +77,8 @@ export default function TeleconsultPage() {
                 <div className="w-24 h-24 rounded-full bg-burgundy-700/40 border-2 border-burgundy-600 flex items-center justify-center text-white mb-3 shadow-lg">
                   <User className="w-12 h-12 text-rose" />
                 </div>
-                <div className="text-[16px] font-bold text-white">Dr. Ananya Rao</div>
-                <div className="text-[12px] text-white/70">Senior Cardiologist · Nandurbar District Civil Hospital</div>
+                <div className="text-[16px] font-bold text-white">Dr. Ananya Natarajan</div>
+                <div className="text-[12px] text-white/70">Senior Cardiologist · Government General Hospital, Chennai</div>
                 <div className="mt-3 inline-flex items-center gap-1.5 bg-black/40 backdrop-blur-sm border border-white/10 rounded-full px-3 py-1 text-[11px] text-white/80">
                   <Activity className="w-3 h-3 text-available-500" />
                   HD Video Feed (PRAGATI Secure Tunnel)

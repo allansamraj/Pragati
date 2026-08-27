@@ -45,7 +45,7 @@ export const DEMO_CREDENTIALS: Record<UserRole, { email: string; password: strin
     password: "Patient@Pragati26",
     user: {
       id: "demo-patient-001",
-      name: "Arjun Deshmukh",
+      name: "Arun Sundaram",
       email: "patient@pragati.demo",
       role: "patient",
       abhaId: "77-8923-4512-6734",
@@ -56,7 +56,7 @@ export const DEMO_CREDENTIALS: Record<UserRole, { email: string; password: strin
     password: "Doctor@Pragati26",
     user: {
       id: "demo-doc-001",
-      name: "Dr. Ananya Rao",
+      name: "Dr. Ananya Natarajan",
       email: "doctor@pragati.demo",
       role: "doctor",
       facilityName: "Government General Hospital, Chennai",
@@ -71,13 +71,13 @@ export const DEMO_CREDENTIALS: Record<UserRole, { email: string; password: strin
     password: "Provider@Pragati26",
     user: {
       id: "demo-provider-001",
-      name: "Chennai Central Pharmacy & Diagnostics",
+      name: "R. Karthikeyan · Chennai Central Pharmacy",
       email: "provider@pragati.demo",
       role: "provider",
       facilityName: "Chennai Central Pharmacy & Diagnostics",
       facilityId: "fac-chn-008",
       department: "Central Pharmacy & Diagnostic Services",
-      providerRole: "Lead Pharmacist & Operations Head",
+      providerRole: "Chief Pharmacist & Supply Lead",
     },
   },
   government: {
@@ -85,7 +85,7 @@ export const DEMO_CREDENTIALS: Record<UserRole, { email: string; password: strin
     password: "Government@Pragati26",
     user: {
       id: "demo-govt-001",
-      name: "Tamil Nadu State Health Command",
+      name: "Dr. J. Radhakrishnan (IAS) · TN Health Command",
       email: "government@pragati.demo",
       role: "government",
       govDepartment: "Department of Health & Family Welfare, Government of Tamil Nadu",

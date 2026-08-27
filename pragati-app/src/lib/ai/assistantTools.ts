@@ -93,7 +93,7 @@ export const patientTools = {
       referringFacility: "Urban Primary Health Centre (UPHC), Triplicane",
       receivingFacility: "Government General Hospital, Chennai",
       specialty: "Cardiology",
-      receivingDoctor: "Dr. Ananya Rao, MD, DM",
+      receivingDoctor: "Dr. Ananya Natarajan, MD, DM",
       appointmentDate: "Today, 27 Aug 2026",
       appointmentTime: "10:30 AM",
       reason: "Class I Exertional Angina with abnormal baseline ECG",
@@ -152,7 +152,7 @@ export const doctorTools = {
 
   getTodayAppointments() {
     return [
-      { time: "10:30 AM", patientName: "Arjun Deshmukh", abhaId: "77-8923-4512-6734", reason: "Exertional Angina & ECG Review", type: "In-Person OPD" },
+      { time: "10:30 AM", patientName: "Arun Sundaram", abhaId: "77-8923-4512-6734", reason: "Exertional Angina & ECG Review", type: "In-Person OPD" },
       { time: "11:00 AM", patientName: "K. Soundararajan", abhaId: "91-3829-1029-4412", reason: "Post-Angioplasty Teleconsult", type: "Telemedicine" },
       { time: "11:30 AM", patientName: "Lakshmi Narayanan", abhaId: "44-1294-8831-9023", reason: "Pre-Cath Lab Consent & Vitals", type: "In-Person OPD" },
     ];

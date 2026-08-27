@@ -114,7 +114,7 @@ const LAST_LOCATION_CACHE_KEY = "pragati_last_user_location";
 
 export const DEFAULT_DOCTOR_LOCATION: DoctorLocation = {
   doctorId: "demo-doc-001",
-  doctorName: "Dr. Ananya Rao",
+  doctorName: "Dr. Ananya Natarajan",
   registeredFacilityId: "fac-chn-001",
   facilityName: "Government General Hospital, Chennai",
   facilityType: "Government Multi-Specialty General Hospital",

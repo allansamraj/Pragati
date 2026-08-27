@@ -45,14 +45,14 @@ export default function ProviderAIConsultationReviewPage() {
               Clinician Oversight &amp; Audit Review
             </span>
             <span className="text-[11px] font-bold text-ink-secondary bg-bg border border-[rgba(124,45,45,0.1)] rounded px-2 py-0.5">
-              Nandurbar District Civil Hospital
+              Government General Hospital, Chennai
             </span>
           </div>
           <h1 className="text-[24px] font-extrabold text-ink-primary tracking-tight">
             AI-Assisted Consent Review Portal
           </h1>
           <p className="text-[13px] text-ink-secondary mt-0.5">
-            Supervising Clinician: <strong className="text-ink-primary">Dr. Ananya Rao, MD, DM (Cardiology)</strong> · MMC-2014-08-3921
+            Supervising Clinician: <strong className="text-ink-primary">Dr. Ananya Natarajan, MD, DM (Cardiology)</strong> · TMC-2014-08-3921
           </p>
         </div>
 
@@ -73,7 +73,7 @@ export default function ProviderAIConsultationReviewPage() {
             <div>
               <div className="font-bold text-[13px]">Consent Record Approved &amp; Digitally Signed!</div>
               <div className="text-[11.5px] text-emerald-800">
-                Record validated with MMC-2014-08-3921 credentials and synchronized with Arjun Deshmukh&apos;s ABHA record.
+                Record validated with TMC-2014-08-3921 credentials and synchronized with Arun Sundaram&apos;s ABHA record.
               </div>
             </div>
           </div>

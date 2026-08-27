@@ -110,7 +110,7 @@ export const DEMO_FACILITIES: Facility[] = [
     hasTelemedicine: true,
     lastUpdated: "Updated 4 min ago",
     doctors: [
-      { id: "doc-chn-01", name: "Dr. Ananya Rao, MD, DM", specialty: "Cardiology", status: "available", nextSlot: "10:30 AM" },
+      { id: "doc-chn-01", name: "Dr. Ananya Natarajan, MD, DM", specialty: "Cardiology", status: "available", nextSlot: "10:30 AM" },
       { id: "doc-chn-02", name: "Dr. S. Karthikeyan", specialty: "General Medicine", status: "available", nextSlot: "10:45 AM" },
       { id: "doc-chn-03", name: "Dr. Meera Sundaram", specialty: "Paediatrics", status: "available", nextSlot: "11:15 AM" },
       { id: "doc-chn-04", name: "Dr. K. Ravichandran", specialty: "Orthopaedics", status: "limited", nextSlot: "1:30 PM" },

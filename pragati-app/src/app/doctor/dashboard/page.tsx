@@ -56,7 +56,7 @@ export default function DoctorDashboard() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: "Today's OPD Queue", value: "24 Patients", sub: "6 Waiting · 18 Completed", color: "text-ink-primary" },
-          { label: "Now In Consultation", value: `Token #${currentServing}`, sub: "Arjun Deshmukh (54y, Chennai)", color: "text-emerald-600" },
+          { label: "Now In Consultation", value: `Token #${currentServing}`, sub: "Arun Sundaram (54y, Chennai)", color: "text-emerald-600" },
           { label: "Avg Consult Time", value: "11 mins", sub: "Within standard 15m", color: "text-ink-primary" },
           { label: "Teleconsult Requests", value: "2 Pending", sub: "Triplicane & Suburban UPHC Hubs", color: "text-burgundy-700" },
         ].map((stat) => (
@@ -75,11 +75,11 @@ export default function DoctorDashboard() {
           <div className="flex items-center justify-between pb-4 border-b border-[rgba(124,45,45,0.08)]">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 font-bold text-[14px]">
-                AD
+                AS
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-[16px] font-bold text-ink-primary">Arjun Deshmukh</h3>
+                  <h3 className="text-[16px] font-bold text-ink-primary">Arun Sundaram</h3>
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                     Token #{currentServing}
                   </span>
@@ -156,10 +156,10 @@ export default function DoctorDashboard() {
 
           <div className="space-y-2.5">
             {[
-              { token: 42, name: "Sunita Kulkarni", age: "48y", status: "Next in line", priority: "Urgent", wait: "Est. 5 min", loc: "Triplicane" },
-              { token: 43, name: "Ganesh Patil", age: "62y", status: "Waiting", priority: "Routine", wait: "Est. 15 min", loc: "Royapettah" },
-              { token: 44, name: "Anjali Shinde", age: "39y", status: "Waiting", priority: "Routine", wait: "Est. 25 min", loc: "Park Town" },
-              { token: 45, name: "Ramesh Gaikwad", age: "55y", status: "Waiting", priority: "Urgent", wait: "Est. 35 min", loc: "Teynampet" },
+              { token: 42, name: "Sundari Karthikeyan", age: "48y", status: "Next in line", priority: "Urgent", wait: "Est. 5 min", loc: "Triplicane" },
+              { token: 43, name: "Ganesan Palanisamy", age: "62y", status: "Waiting", priority: "Routine", wait: "Est. 15 min", loc: "Royapettah" },
+              { token: 44, name: "Anjalai Shanmugam", age: "39y", status: "Waiting", priority: "Routine", wait: "Est. 25 min", loc: "Park Town" },
+              { token: 45, name: "Ramesh Govindarajan", age: "55y", status: "Waiting", priority: "Urgent", wait: "Est. 35 min", loc: "Teynampet" },
             ].map((p) => (
               <div
                 key={p.token}

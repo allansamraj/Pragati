@@ -143,7 +143,7 @@ export default function ProviderLoginPage() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[12.5px] font-bold text-burgundy-800">Use Demo Pharmacy Account</div>
-              <div className="text-[11px] text-ink-tertiary truncate font-mono">provider@pragati.demo · Rajesh Kulkarni</div>
+              <div className="text-[11px] text-ink-tertiary truncate font-mono">provider@pragati.demo · R. Karthikeyan</div>
             </div>
             <ArrowRight className="w-4 h-4 text-burgundy-700 group-hover:translate-x-1 transition-transform" />
           </button>

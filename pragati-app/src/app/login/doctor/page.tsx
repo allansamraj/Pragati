@@ -120,7 +120,7 @@ export default function DoctorLoginPage() {
               <Stethoscope className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[13px] font-bold text-ink-primary">Dr. Ananya Rao · Cardiologist</div>
+              <div className="text-[13px] font-bold text-ink-primary">Dr. Ananya Natarajan · Cardiologist</div>
               <div className="text-[11px] text-ink-tertiary">Government General Hospital, Chennai · Dept of Cardiology</div>
             </div>
           </div>
@@ -143,7 +143,7 @@ export default function DoctorLoginPage() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[12.5px] font-bold text-emerald-900">Use Demo Doctor Account</div>
-              <div className="text-[11px] text-emerald-700 truncate font-mono">doctor@pragati.demo · Dr. Ananya Rao</div>
+              <div className="text-[11px] text-emerald-700 truncate font-mono">doctor@pragati.demo · Dr. Ananya Natarajan</div>
             </div>
             <ArrowRight className="w-4 h-4 text-emerald-700 group-hover:translate-x-1 transition-transform" />
           </button>
