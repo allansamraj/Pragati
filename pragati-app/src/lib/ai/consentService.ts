@@ -51,13 +51,13 @@ const INITIAL_SESSION: ConsentSessionData = {
     {
       time: "09:45 AM",
       title: "Consent Session Scheduled",
-      description: "Dr. Ananya Rao scheduled AI-assisted pre-procedure consent explanation.",
+      description: "Dr. Ananya Natarajan scheduled AI-assisted pre-procedure consent explanation.",
       actor: "CLINICIAN",
     },
     {
       time: "10:28 AM",
       title: "Patient Joined Pre-Session",
-      description: "Arjun Deshmukh connected via PRAGATI secure patient workspace.",
+      description: "Arun Sundaram connected via PRAGATI secure patient workspace.",
       actor: "PATIENT",
     },
   ],

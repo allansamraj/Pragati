@@ -329,12 +329,12 @@ export default function PrescriptionsPage() {
                 <div className="grid grid-cols-2 gap-4 text-[12px] bg-[#FAF8F6] p-3 rounded-[8px] border border-[rgba(124,45,45,0.08)]">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-ink-tertiary block">Prescribing Clinician</span>
-                    <strong>Dr. Ananya Rao, MD, DM (Cardiology)</strong>
-                    <div className="text-[10.5px] text-ink-secondary">Reg No: MMC-2014-08-3921 · Dept: Cardiology OPD</div>
+                    <strong>Dr. Ananya Natarajan, MD, DM (Cardiology)</strong>
+                    <div className="text-[10.5px] text-ink-secondary">Reg No: TMC-2014-08-3921 · Dept: Cardiology OPD</div>
                   </div>
                   <div>
                     <span className="text-[10px] uppercase font-bold text-ink-tertiary block">Patient Information</span>
-                    <strong>Arjun Deshmukh (54y, Male)</strong>
+                    <strong>Arun Sundaram (54y, Male)</strong>
                     <div className="text-[10.5px] text-ink-secondary font-mono">ABHA ID: 77-8923-4512-6734</div>
                   </div>
                 </div>

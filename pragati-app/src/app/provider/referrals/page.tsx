@@ -2,15 +2,15 @@
 import { ArrowRight, CheckCircle2 } from 'lucide-react';
 
 const incomingReferrals = [
-  { id: 1, name: 'Rahul Sharma', age: 45, abha: '91-XXXX-XXXX-1234', from: 'PHC Ramnagar', specialty: 'Cardiology', urgency: 'high', status: 'pending' },
-  { id: 2, name: 'Sunita Devi', age: 32, abha: '91-XXXX-XXXX-5678', from: 'CHC Palampur', specialty: 'Gynecology', urgency: 'medium', status: 'pending' },
-  { id: 3, name: 'Amit Kumar', age: 28, abha: '91-XXXX-XXXX-9012', from: 'HWC Village X', specialty: 'Orthopedics', urgency: 'low', status: 'accepted' },
-  { id: 4, name: 'Meena Kumari', age: 55, abha: '91-XXXX-XXXX-3456', from: 'PHC Ramnagar', specialty: 'Internal Medicine', urgency: 'medium', status: 'pending' },
+  { id: 1, name: 'Arun Sundaram', age: 54, abha: '77-XXXX-XXXX-6734', from: 'Government UPHC Triplicane', specialty: 'Cardiology', urgency: 'high', status: 'pending' },
+  { id: 2, name: 'Sundari Karthikeyan', age: 48, abha: '82-XXXX-XXXX-3312', from: 'Royapettah Urban Clinic', specialty: 'Gynaecology', urgency: 'medium', status: 'pending' },
+  { id: 3, name: 'Anjalai Shanmugam', age: 39, abha: '61-XXXX-XXXX-4491', from: 'Park Town Dispensary', specialty: 'Orthopaedics', urgency: 'low', status: 'accepted' },
+  { id: 4, name: 'Meenakshi Sundaram', age: 55, abha: '44-XXXX-XXXX-9023', from: 'Teynampet Health Post', specialty: 'Internal Medicine', urgency: 'medium', status: 'pending' },
 ];
 
 const outgoingReferrals = [
-  { id: 101, name: 'Kishore Das', age: 62, to: 'Medical College Hospital', specialty: 'Oncology', date: 'Today' },
-  { id: 102, name: 'Ravi Verma', age: 40, to: 'District Hospital Central', specialty: 'Neurology', date: 'Yesterday' },
+  { id: 101, name: 'K. Soundararajan', age: 62, to: 'Omandurar Multi Super Speciality Hospital', specialty: 'Oncology', date: 'Today' },
+  { id: 102, name: 'V. Balasubramanian', age: 40, to: 'Government Stanley Medical College Hospital', specialty: 'Neurology', date: 'Yesterday' },
 ];
 
 export default function ReferralsPage() {

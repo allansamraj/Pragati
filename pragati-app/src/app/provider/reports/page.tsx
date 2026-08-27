@@ -30,11 +30,11 @@ const SAMPLE_REPORT_DATA: Record<number, ReportDetail> = {
     ],
     tableHeaders: ["Department / Room", "Doctor on Duty", "Patients Seen", "Avg Time", "Status"],
     tableRows: [
-      ["Cardiology OPD (Room 204)", "Dr. Ananya Rao", "48", "16 mins", "Active"],
-      ["General Medicine (Room 102)", "Dr. Prakash More", "84", "12 mins", "Active"],
-      ["Paediatrics OPD (Room 105)", "Dr. Smita Deshmukh", "56", "14 mins", "Completed"],
-      ["Orthopaedics (Room 208)", "Dr. Sachin Kulkarni", "42", "18 mins", "Active"],
-      ["Gynaecology & ANC (Room 110)", "Dr. Anjali Patil", "62", "15 mins", "Active"],
+      ["Cardiology OPD (Room 204)", "Dr. Ananya Natarajan", "48", "16 mins", "Active"],
+      ["General Medicine (Room 102)", "Dr. S. Karthikeyan", "84", "12 mins", "Active"],
+      ["Paediatrics OPD (Room 105)", "Dr. Meera Sundaram", "56", "14 mins", "Completed"],
+      ["Orthopaedics (Room 208)", "Dr. K. Ravichandran", "42", "18 mins", "Active"],
+      ["Gynaecology & ANC (Room 110)", "Dr. S. Priya", "62", "15 mins", "Active"],
     ],
   },
   2: {
@@ -72,10 +72,10 @@ const SAMPLE_REPORT_DATA: Record<number, ReportDetail> = {
     ],
     tableHeaders: ["Doctor Name", "Specialty", "Roster Shift", "OPD Patients", "Teleconsult Sessions"],
     tableRows: [
-      ["Dr. Ananya Rao", "Cardiology", "Morning + Tele", "184", "24 Sessions"],
-      ["Dr. Prakash More", "General Medicine", "Full Day", "312", "18 Sessions"],
-      ["Dr. Smita Deshmukh", "Paediatrics", "Morning OPD", "148", "6 Sessions"],
-      ["Dr. Sachin Kulkarni", "Orthopaedics", "Afternoon OPD", "118", "4 Sessions"],
+      ["Dr. Ananya Natarajan", "Cardiology", "Morning + Tele", "184", "24 Sessions"],
+      ["Dr. S. Karthikeyan", "General Medicine", "Full Day", "312", "18 Sessions"],
+      ["Dr. Meera Sundaram", "Paediatrics", "Morning OPD", "148", "6 Sessions"],
+      ["Dr. K. Ravichandran", "Orthopaedics", "Afternoon OPD", "118", "4 Sessions"],
     ],
   },
   4: {

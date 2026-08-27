@@ -5,12 +5,12 @@ import Link from "next/link";
 import { Search, User, FileText, ShieldCheck, Activity, ChevronRight } from "lucide-react";
 
 const PATIENTS = [
-  { id: "P-101", name: "Arjun Deshmukh", age: "54y", gender: "Male", abha: "77-8923-4512-6734", loc: "Triplicane, Chennai", condition: "Hypertension, Exertional Angina", lastVisit: "Today (OPD)", status: "Active" },
-  { id: "P-102", name: "Sunita Kulkarni", age: "48y", gender: "Female", abha: "82-1144-9021-3312", loc: "Royapettah, Chennai", condition: "Sinus Tachycardia", lastVisit: "12 Aug 2026", status: "Follow-up" },
-  { id: "P-103", name: "Ganesh Patil", age: "62y", gender: "Male", abha: "45-7782-3901-8842", loc: "Park Town, Chennai", condition: "Post-CABG Follow-up, Type 2 Diabetes", lastVisit: "28 Jul 2026", status: "Stable" },
-  { id: "P-104", name: "Anjali Shinde", age: "39y", gender: "Female", abha: "61-2291-5510-4491", loc: "Teynampet, Chennai", condition: "Mitral Valve Prolapse (Mild)", lastVisit: "15 Jun 2026", status: "Stable" },
-  { id: "P-105", name: "Ramesh Gaikwad", age: "55y", gender: "Male", abha: "91-4402-1188-7721", loc: "Adyar, Chennai", condition: "Ischemic Heart Disease", lastVisit: "02 Aug 2026", status: "Medication Review" },
-  { id: "P-106", name: "Pooja Chavan", age: "51y", gender: "Female", abha: "33-6621-9988-1122", loc: "Anna Nagar, Chennai", condition: "Cardiac Arrhythmia", lastVisit: "19 Jul 2026", status: "Stable" },
+  { id: "P-101", name: "Arun Sundaram", age: "54y", gender: "Male", abha: "77-8923-4512-6734", loc: "Triplicane, Chennai", condition: "Hypertension, Exertional Angina", lastVisit: "Today (OPD)", status: "Active" },
+  { id: "P-102", name: "Sundari Karthikeyan", age: "48y", gender: "Female", abha: "82-1144-9021-3312", loc: "Royapettah, Chennai", condition: "Sinus Tachycardia", lastVisit: "12 Aug 2026", status: "Follow-up" },
+  { id: "P-103", name: "Ganesan Palanisamy", age: "62y", gender: "Male", abha: "45-7782-3901-8842", loc: "Park Town, Chennai", condition: "Post-CABG Follow-up, Type 2 Diabetes", lastVisit: "28 Jul 2026", status: "Stable" },
+  { id: "P-104", name: "Anjalai Shanmugam", age: "39y", gender: "Female", abha: "61-2291-5510-4491", loc: "Teynampet, Chennai", condition: "Mitral Valve Prolapse (Mild)", lastVisit: "15 Jun 2026", status: "Stable" },
+  { id: "P-105", name: "Ramesh Govindarajan", age: "55y", gender: "Male", abha: "91-4402-1188-7721", loc: "Adyar, Chennai", condition: "Ischemic Heart Disease", lastVisit: "02 Aug 2026", status: "Medication Review" },
+  { id: "P-106", name: "Poongodi Chandran", age: "51y", gender: "Female", abha: "33-6621-9988-1122", loc: "Anna Nagar, Chennai", condition: "Cardiac Arrhythmia", lastVisit: "19 Jul 2026", status: "Stable" },
 ];
 
 export default function DoctorPatientsPage() {

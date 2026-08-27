@@ -94,10 +94,10 @@ export default function TeleconsultPage() {
             {/* Self / Patient Floating PIP Window (Bottom Right) */}
             <div className="absolute bottom-4 right-4 w-36 h-28 sm:w-44 sm:h-32 bg-[#2D1F1C] border-2 border-white/20 rounded-[12px] overflow-hidden shadow-xl flex flex-col items-center justify-center p-2 text-center">
               <div className="w-8 h-8 rounded-full bg-burgundy-700 flex items-center justify-center text-white text-[11px] font-bold mb-1">
-                AD
+                AS
               </div>
-              <div className="text-[11px] font-bold text-white truncate max-w-[120px]">Arjun Deshmukh (PHC)</div>
-              <div className="text-[9px] text-white/60">Assisted by ASHA Worker (Sunita Tai)</div>
+              <div className="text-[11px] font-bold text-white truncate max-w-[120px]">Arun Sundaram (UPHC)</div>
+              <div className="text-[9px] text-white/60">Assisted by Community Health Nurse (V. Selvi)</div>
             </div>
 
             {/* Floating Live Vitals HUD */}

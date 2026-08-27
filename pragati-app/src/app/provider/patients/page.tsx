@@ -5,7 +5,7 @@ import { Search, ChevronDown, ChevronUp, Lock, FileText, Pill, Activity, ArrowRi
 const patients = Array.from({ length: 12 }, (_, i) => ({
   id: i + 1,
   token: `T-${100 + i}`,
-  name: ['Rajesh Kumar', 'Priya Singh', 'Anil Das', 'Kavita Patel', 'Mohd Tariq', 'Sneha Reddy', 'Vikram Singh', 'Pooja Sharma', 'Arun V', 'Deepa K', 'Manoj Tiwari', 'Rekha M'][i],
+  name: ['Arun Sundaram', 'Sundari Karthikeyan', 'Ganesan Palanisamy', 'Anjalai Shanmugam', 'Mohd Tariq', 'Sneha Radhakrishnan', 'Vikram Soundararajan', 'Poongodi Chandran', 'Arunachalam V', 'Deepa Senthil', 'Manoj Balaji', 'Rekha Murugesan'][i],
   age: 25 + (i * 3),
   abha: `91-XXXX-XXXX-${1000 + i}`,
   specialty: ['General', 'Cardiology', 'Pediatrics', 'Orthopedics'][i % 4],

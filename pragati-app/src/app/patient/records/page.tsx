@@ -262,13 +262,13 @@ export default function RecordsPage() {
                 <div className="grid grid-cols-3 gap-3 text-[11.5px] bg-[#FAF8F6] p-3 rounded-[8px] border border-[rgba(124,45,45,0.08)]">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-ink-tertiary block">Patient Name</span>
-                    <strong>Arjun Deshmukh</strong>
+                    <strong>Arun Sundaram</strong>
                     <div className="text-[10px] text-ink-secondary">54 Yrs / Male · Blood: B+</div>
                   </div>
                   <div>
                     <span className="text-[10px] uppercase font-bold text-ink-tertiary block">ABHA Address</span>
                     <strong className="font-mono">77-8923-4512-6734</strong>
-                    <div className="text-[10px] text-ink-secondary">Nandurbar District</div>
+                    <div className="text-[10px] text-ink-secondary">Chennai District</div>
                   </div>
                   <div>
                     <span className="text-[10px] uppercase font-bold text-ink-tertiary block">Report Date</span>

@@ -62,8 +62,8 @@ export default function DoctorTeleconsultPage() {
                 <div className="w-24 h-24 rounded-full bg-burgundy-700/40 border-2 border-burgundy-600 flex items-center justify-center text-white mb-3 shadow-lg">
                   <User className="w-12 h-12 text-rose-300" />
                 </div>
-                <div className="text-[16px] font-bold text-white">Arjun Deshmukh (54y)</div>
-                <div className="text-[12px] text-white/70">Connected from Dhadgaon Rural Primary Health Centre, Nandurbar</div>
+                <div className="text-[16px] font-bold text-white">Arun Sundaram (54y)</div>
+                <div className="text-[12px] text-white/70">Connected from Government Urban Primary Health Centre (UPHC), Triplicane</div>
                 <div className="mt-3 inline-flex items-center gap-1.5 bg-black/40 backdrop-blur-sm border border-white/10 rounded-full px-3 py-1 text-[11px] text-white/80">
                   <Activity className="w-3 h-3 text-emerald-400" />
                   Live Digital Stethoscope &amp; ECG Synced
@@ -133,7 +133,7 @@ export default function DoctorTeleconsultPage() {
         <div className="bg-white border border-[rgba(124,45,45,0.09)] rounded-[16px] overflow-hidden flex flex-col h-[520px] shadow-2xs">
           <div className="p-4 border-b border-[rgba(124,45,45,0.08)] bg-bg">
             <div className="text-[13px] font-bold text-ink-primary">Live Clinical Notes &amp; Rx</div>
-            <div className="text-[11px] text-ink-tertiary">Real-time sync to Dhadgaon PHC tablet</div>
+            <div className="text-[11px] text-ink-tertiary">Real-time sync to Triplicane UPHC tablet</div>
           </div>
 
           <div className="flex-1 p-4 space-y-4 overflow-y-auto">
@@ -142,7 +142,7 @@ export default function DoctorTeleconsultPage() {
                 Doctor Advice &amp; Instructions
               </label>
               <textarea
-                defaultValue="Advise patient Arjun Deshmukh to take Metoprolol 50mg regularly. Dhadgaon PHC nurse to re-check BP in 1 week. If symptoms worsen, transfer to Nandurbar Civil Hospital."
+                defaultValue="Advise patient Arun Sundaram to take Metoprolol 50mg regularly. Triplicane UPHC nurse to re-check BP in 1 week. If symptoms worsen, transfer to Government General Hospital, Chennai."
                 rows={4}
                 className="w-full p-2.5 bg-bg border border-[rgba(124,45,45,0.12)] rounded-[8px] text-[12.5px] text-ink-primary focus:outline-none focus:border-emerald-600"
               />

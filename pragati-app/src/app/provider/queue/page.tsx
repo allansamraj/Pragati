@@ -7,15 +7,15 @@ import { UserCheck, Filter, Search, ChevronRight } from "lucide-react";
 const SPECIALTIES = ["All Doctors", "Cardiology", "Paediatrics", "General Medicine", "Gynaecology"];
 
 const FULL_QUEUE = [
-  { token: 41, name: "Arjun Deshmukh",    age: 54, specialty: "Cardiology",        abha: "77-8923", status: "active",    wait: 0 },
-  { token: 42, name: "Sunita Kulkarni",   age: 48, specialty: "Cardiology",        abha: "62-4411", status: "waiting",   wait: 5 },
-  { token: 43, name: "Ganesh Patil",      age: 62, specialty: "Cardiology",        abha: "91-2234", status: "waiting",   wait: 10 },
-  { token: 44, name: "Anjali Shinde",     age: 39, specialty: "Cardiology",        abha: "55-6723", status: "waiting",   wait: 15 },
-  { token: 45, name: "Mohammed Salim",    age: 38, specialty: "Cardiology",        abha: "44-8891", status: "waiting",   wait: 20 },
-  { token: 46, name: "Sarla Deshmukh",    age: 60, specialty: "Cardiology",        abha: "33-5512", status: "waiting",   wait: 25 },
-  { token: 47, name: "Suresh Gaikwad",    age: 42, specialty: "Cardiology",        abha: "22-9980", status: "waiting",   wait: 30 },
-  { token: 48, name: "Pooja Chavan",      age: 28, specialty: "Paediatrics",       abha: "11-3345", status: "waiting",   wait: 15 },
-  { token: 49, name: "Vinod More",        age: 55, specialty: "General Medicine",  abha: "88-7712", status: "waiting",   wait: 12 },
+  { token: 41, name: "Arun Sundaram",      age: 54, specialty: "Cardiology",        abha: "77-8923", status: "active",    wait: 0 },
+  { token: 42, name: "Sundari Karthikeyan", age: 48, specialty: "Cardiology",        abha: "62-4411", status: "waiting",   wait: 5 },
+  { token: 43, name: "Ganesan Palanisamy",  age: 62, specialty: "Cardiology",        abha: "91-2234", status: "waiting",   wait: 10 },
+  { token: 44, name: "Anjalai Shanmugam",   age: 39, specialty: "Cardiology",        abha: "55-6723", status: "waiting",   wait: 15 },
+  { token: 45, name: "Mohammed Salim",     age: 38, specialty: "Cardiology",        abha: "44-8891", status: "waiting",   wait: 20 },
+  { token: 46, name: "Saradha Sundaram",    age: 60, specialty: "Cardiology",        abha: "33-5512", status: "waiting",   wait: 25 },
+  { token: 47, name: "Suresh Govindarajan", age: 42, specialty: "Cardiology",        abha: "22-9980", status: "waiting",   wait: 30 },
+  { token: 48, name: "Poongodi Chandran",   age: 28, specialty: "Paediatrics",       abha: "11-3345", status: "waiting",   wait: 15 },
+  { token: 49, name: "V. Murugesan",        age: 55, specialty: "General Medicine",  abha: "88-7712", status: "waiting",   wait: 12 },
 ];
 
 export default function QueuePage() {
