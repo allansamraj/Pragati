@@ -32,7 +32,7 @@ export default function DoctorTeleconsultPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
-              Maharashtra eSanjeevani Teleconsultation Line
+              PRAGATI Rural Teleconsultation Line
             </span>
             <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />

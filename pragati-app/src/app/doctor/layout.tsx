@@ -136,7 +136,7 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
               href="/doctor/teleconsult"
               className="flex items-center gap-1.5 px-3 py-1 bg-burgundy-700 hover:bg-burgundy-800 text-white rounded-[7px] text-[11px] font-bold transition-colors shadow-2xs"
             >
-              <Video className="w-3.5 h-3.5" /> eSanjeevani Line (1)
+              <Video className="w-3.5 h-3.5" /> PRAGATI Teleconsult (1)
             </Link>
           </div>
         </header>

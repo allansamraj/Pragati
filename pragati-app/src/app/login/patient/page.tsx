@@ -94,7 +94,7 @@ export default function PatientLoginPage() {
             {[
               { icon: Search, label: "Verified Specialist, Diagnostic & Bed Availability", color: "#34D399" },
               { icon: Ticket, label: "Real-Time Live OPD Queue Token Tracking (#47)", color: "#FBBF24" },
-              { icon: Video, label: "eSanjeevani Teleconsultation with District Specialists", color: "#22D3EE" },
+              { icon: Video, label: "PRAGATI Teleconsultation with District Specialists", color: "#22D3EE" },
               { icon: FileText, label: "Consent-Based Longitudinal Digital Health Records", color: "#FB7185" },
             ].map((item) => (
               <div key={item.label} className="flex items-center gap-3 bg-white/10 border border-white/15 rounded-[10px] p-3 backdrop-blur-md">

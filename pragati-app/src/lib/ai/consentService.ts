@@ -57,7 +57,7 @@ const INITIAL_SESSION: ConsentSessionData = {
     {
       time: "10:28 AM",
       title: "Patient Joined Pre-Session",
-      description: "Arjun Deshmukh connected via eSanjeevani secure patient workspace.",
+      description: "Arjun Deshmukh connected via PRAGATI secure patient workspace.",
       actor: "PATIENT",
     },
   ],

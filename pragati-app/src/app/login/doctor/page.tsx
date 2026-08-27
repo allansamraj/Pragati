@@ -78,13 +78,13 @@ export default function DoctorLoginPage() {
           </h1>
 
           <p className="text-[15px] text-slate-200 mt-4 leading-relaxed max-w-[420px] font-normal" style={{ color: '#E2E8F0' }}>
-            Call waiting OPD patients, conduct eSanjeevani teleconsultations with remote rural PHCs, write digital e-prescriptions, and review longitudinal clinical records.
+            Call waiting OPD patients, conduct PRAGATI teleconsultations with remote rural PHCs, write digital e-prescriptions, and review longitudinal clinical records.
           </p>
 
           <div className="mt-8 space-y-3">
             {[
               { icon: Users, label: "Live OPD Token Call System (#41 → #42)", color: "#34D399" },
-              { icon: Video, label: "eSanjeevani Telemedicine (Rural Hub-and-Spoke)", color: "#22D3EE" },
+              { icon: Video, label: "PRAGATI Telemedicine (Rural Hub-and-Spoke)", color: "#22D3EE" },
               { icon: FileText, label: "1-Click Digital E-Prescription & Vitals Sync", color: "#FBBF24" },
               { icon: Activity, label: "Doctor Availability Schedule & On-Duty Status", color: "#FB7185" },
             ].map((item) => (

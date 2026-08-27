@@ -6,14 +6,15 @@ import { TopBar } from "@/components/shared/TopBar";
 import { PragatiAssist } from "@/components/ai/PragatiAssist";
 
 export const metadata: Metadata = {
-  title: "PRAGATI — Public Healthcare Access & Continuity Platform",
+  title: "PRAGATI — Platform for Rural Access, Guidance & Integrated Treatment",
   description:
-    "PRAGATI connects patients in rural and underserved areas with the right public healthcare facility based on clinical need, specialist availability, diagnostics, and current OPD capacity.",
+    "PRAGATI (Platform for Rural Access, Guidance & Integrated Treatment) connects patients in rural and underserved areas with the right public healthcare facility based on clinical need, specialist availability, diagnostics, and current OPD capacity.",
   keywords: [
-    "public healthcare India",
+    "PRAGATI healthcare India",
+    "Platform for Rural Access Guidance Integrated Treatment",
     "rural healthcare access",
     "Maharashtra public health",
-    "eSanjeevani teleconsultation",
+    "PRAGATI teleconsultation",
     "OPD live queue tracking",
     "ABHA digital health records",
   ],

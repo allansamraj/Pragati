@@ -134,7 +134,7 @@ export const DEMO_PATIENT: Patient = {
     },
     {
       id: "apt-002",
-      type: "eSanjeevani Teleconsultation",
+      type: "PRAGATI Teleconsultation",
       specialty: "General Medicine",
       doctor: "Dr. Prakash More",
       facility: "Dhadgaon Rural Hospital & PHC Hub",

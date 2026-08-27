@@ -81,7 +81,7 @@ export default function TeleconsultPage() {
                 <div className="text-[12px] text-white/70">Senior Cardiologist · Nandurbar District Civil Hospital</div>
                 <div className="mt-3 inline-flex items-center gap-1.5 bg-black/40 backdrop-blur-sm border border-white/10 rounded-full px-3 py-1 text-[11px] text-white/80">
                   <Activity className="w-3 h-3 text-available-500" />
-                  HD Video Feed (eSanjeevani Secure Tunnel)
+                  HD Video Feed (PRAGATI Secure Tunnel)
                 </div>
               </div>
             ) : (

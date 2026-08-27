@@ -149,7 +149,7 @@ export const DEMO_FACILITIES: Facility[] = [
     matchScore: 68,
     distanceKm: 42.0,
     travelMinutes: 65,
-    matchReasons: ["eSanjeevani Teleconsultation Active", "Primary Emergency Care"],
+    matchReasons: ["PRAGATI Teleconsultation Active", "Primary Emergency Care"],
     matchWarnings: ["No CT Scan machine", "Cardiac Specialist via Telemedicine"],
     matchFails: [],
     doctors: [

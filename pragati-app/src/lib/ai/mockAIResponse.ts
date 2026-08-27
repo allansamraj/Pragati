@@ -205,7 +205,7 @@ function handleConversational(
         ? "I am PRAGATI Operations Assist — an intelligent operational support system for Nandurbar Central Pharmacy & Diagnostic Labs. I monitor stockouts, manage machine availability, and prepare state resupply requisitions."
         : role === "government"
         ? "I am PRAGATI Health Intelligence — a public healthcare surveillance and decision-support assistant for Maharashtra state authorities, tracking accessibility, specialist shortages, and facility workloads across 36 districts."
-        : "I am PRAGATI Care — your AI healthcare guide for public health services across Maharashtra. I help you find available care, check live OPD tokens, manage appointments, view ABHA-linked health records, and connect with doctors via eSanjeevani teleconsultation.";
+        : "I am PRAGATI Care — your AI healthcare guide for public health services across Maharashtra. I help you find available care, check live OPD tokens, manage appointments, view ABHA-linked health records, and connect with doctors via PRAGATI teleconsultation.";
 
     return {
       id: msgId,
@@ -234,7 +234,7 @@ function handleConversational(
         "Key Pillars:\n" +
         "1. Need-Based Triage: Matches clinical symptoms with verified doctor & bed availability before you travel.\n" +
         "2. Live OPD Token System: Eliminates crowded hospital queues with real-time queue tracking.\n" +
-        "3. eSanjeevani Hub-and-Spoke Telemedicine: Connects rural PHCs directly with tertiary specialists.\n" +
+        "3. PRAGATI Hub-and-Spoke Telemedicine: Connects rural PHCs directly with tertiary specialists.\n" +
         "4. ABHA Longitudinal Records: Seamless digital health history shared across healthcare facilities.",
       timestamp,
       role,
@@ -337,7 +337,7 @@ function handleConversational(
       id: msgId,
       sender: "assistant",
       text:
-        "Nandurbar District Civil Hospital is a 300-bed secondary & tertiary healthcare facility equipped with 24/7 emergency trauma, active Cardiology OPD, 12-lead ECG, radiology, and an automated pharmacy counter. It connects with rural spoke PHCs like Dhadgaon and Akkalkuwa via eSanjeevani teleconsultation.",
+        "Nandurbar District Civil Hospital is a 300-bed secondary & tertiary healthcare facility equipped with 24/7 emergency trauma, active Cardiology OPD, 12-lead ECG, radiology, and an automated pharmacy counter. It connects with rural spoke PHCs like Dhadgaon and Akkalkuwa via PRAGATI teleconsultation.",
       timestamp,
       role,
       language,
