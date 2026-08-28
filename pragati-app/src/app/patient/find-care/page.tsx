@@ -162,7 +162,7 @@ function FindCareContent() {
     }
   };
 
-  // Filter facilities by user-selected radius & ownership if specified
+  // 1. Clinical Recommendation Facilities (left list)
   let facilities = searchResult?.facilities || [];
   if (customRadiusKm !== undefined) {
     facilities = facilities.filter((f) => (f.distanceKm ?? 999) <= customRadiusKm);
@@ -183,8 +183,30 @@ function FindCareContent() {
     );
   }
 
-  const effectiveRadiusKm = customRadiusKm ?? searchResult?.searchRadiusKm ?? 10;
+  // 2. Map Discovery Facilities (right map) - ALL nearby healthcare facilities
+  let mapFacilities = searchResult?.allNearbyFacilities || searchResult?.facilities || [];
+  if (customRadiusKm !== undefined) {
+    mapFacilities = mapFacilities.filter((f) => (f.distanceKm ?? 999) <= customRadiusKm);
+  }
+  if (ownershipFilter === "government") {
+    mapFacilities = mapFacilities.filter(
+      (f) => f.ownershipSector === "GOVERNMENT" || f.ownership === "government" || f.facilityType.startsWith("GOVERNMENT")
+    );
+  } else if (ownershipFilter === "private") {
+    mapFacilities = mapFacilities.filter(
+      (f) =>
+        f.ownershipSector === "PRIVATE" ||
+        f.ownership === "private" ||
+        f.ownership === "private_empaneled" ||
+        f.facilityType.startsWith("PRIVATE") ||
+        f.facilityType === "DIAGNOSTIC_CENTER" ||
+        f.facilityType === "PHARMACY"
+    );
+  }
+
+  const effectiveRadiusKm = customRadiusKm ?? searchResult?.searchRadiusKm ?? 5;
   const isBestMatchMode = searchResult?.isBestMatchMode || false;
+
 
   return (
     <div className="max-w-[1240px] space-y-5">
@@ -534,22 +556,29 @@ function FindCareContent() {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <h2 className="text-[17px] font-extrabold text-ink-primary">
-              {sortMode === "best_match" ? "Best Match Healthcare Facilities" : "Nearby Healthcare Facilities"}
+              {specialtyParam || query ? "Clinical Recommendations" : "Nearby Healthcare Facilities"}
             </h2>
             <p className="text-[12px] text-ink-secondary">
-              Showing healthcare facilities within {effectiveRadiusKm} km of your location
+              {specialtyParam || query
+                ? `Showing matching healthcare facilities for ${specialtyParam || query} within ${effectiveRadiusKm} km (${mapFacilities.length} total on map)`
+                : `Showing healthcare facilities within ${effectiveRadiusKm} km of your location`}
             </p>
           </div>
 
-          <span className="text-[11.5px] font-bold text-burgundy-700 bg-blush border border-[rgba(124,45,45,0.12)] px-2.5 py-1 rounded-[6px]">
-            {facilities.length} Verified Facilities Found
-          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11.5px] font-bold text-burgundy-700 bg-blush border border-[rgba(124,45,45,0.12)] px-2.5 py-1 rounded-[6px]">
+              {facilities.length} Clinical Matches
+            </span>
+            <span className="text-[11.5px] font-bold text-ink-primary bg-surface border border-[rgba(124,45,45,0.12)] px-2.5 py-1 rounded-[6px]">
+              {mapFacilities.length} on Map
+            </span>
+          </div>
         </div>
 
-        {searchResult?.isExpandedRadius && customRadiusKm === undefined && (
+        {searchResult?.isExpandedRadius && customRadiusKm === undefined && facilities.length > 0 && (
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-[10px] flex items-center gap-2 text-amber-900 text-[12px] font-semibold">
             <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-            <span>Showing verified facilities within {effectiveRadiusKm} km because fewer facilities were found within 5 km.</span>
+            <span>Showing verified facilities within {effectiveRadiusKm} km because fewer direct specialty matches were found within 5 km.</span>
           </div>
         )}
       </div>
@@ -562,25 +591,38 @@ function FindCareContent() {
             <div className="bg-white rounded-[14px] border border-[rgba(124,45,45,0.1)] p-8 text-center space-y-3 shadow-2xs">
               <Building2 className="w-10 h-10 text-ink-tertiary mx-auto opacity-60" />
               <h3 className="text-[16px] font-bold text-ink-primary">
-                There&apos;s no verified {ownershipFilter === "government" ? "government" : ownershipFilter === "private" ? "private" : ""} facility matching this requirement within the current search radius.
+                0 clinical matches found {specialtyParam ? `for ${specialtyParam}` : ""} within {effectiveRadiusKm} km.
               </h3>
               <p className="text-[13px] text-ink-secondary max-w-md mx-auto">
-                Try expanding your search distance or switching the filter to &quot;ALL&quot; to see all registered providers.
+                {mapFacilities.length > 0
+                  ? `Nearby healthcare facilities (${mapFacilities.length} active hospitals, clinics, and centres) are still displayed on the map to your right.`
+                  : "Try expanding your search distance or allowing GPS permissions to find facilities in adjacent areas."}
               </p>
-              <div className="flex items-center justify-center gap-2 pt-2">
+              <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
+                {mapFacilities.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery("");
+                      setSpecialtyParam("");
+                      setOwnershipFilter("all");
+                    }}
+                    className="px-4 py-2 bg-burgundy-700 hover:bg-burgundy-800 text-white rounded-[8px] text-[12.5px] font-bold transition-colors shadow-2xs cursor-pointer"
+                  >
+                    Show All {mapFacilities.length} Facilities on List
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => {
-                    setCustomRadiusKm(undefined);
-                    setOwnershipFilter("all");
-                  }}
-                  className="px-4 py-2 bg-burgundy-700 hover:bg-burgundy-800 text-white rounded-[8px] text-[12.5px] font-bold transition-colors shadow-2xs cursor-pointer"
+                  onClick={() => setCustomRadiusKm(10)}
+                  className="px-4 py-2 bg-blush hover:bg-rose text-burgundy-700 border border-[rgba(124,45,45,0.15)] rounded-[8px] text-[12.5px] font-bold transition-colors cursor-pointer"
                 >
-                  Show All Facilities Nearby
+                  Expand to 10 km
                 </button>
               </div>
             </div>
           ) : (
+
             facilities.map((facility, index) => {
               const isBestMatch = isBestMatchMode && (facility.matchScore ?? 0) >= 80 && index === 0;
               const isSelected = selectedFacilityId === facility.id;
@@ -751,7 +793,7 @@ function FindCareContent() {
         {/* Right: Real-time Resource Map */}
         <div className={mobileTab === "list" ? "hidden lg:block" : "block"}>
           <RealTimeFacilityMap
-            facilities={facilities}
+            facilities={mapFacilities}
             selectedFacilityId={selectedFacilityId}
             onSelectFacility={setSelectedFacilityId}
             patientCoords={{ lat, lng, locality, isManual: source === "MANUAL" }}

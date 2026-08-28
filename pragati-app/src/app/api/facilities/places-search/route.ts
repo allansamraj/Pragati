@@ -125,17 +125,63 @@ function isGovernment(name: string): boolean {
   );
 }
 
+const PLACES_SEARCH_NEARBY = 'https://places.googleapis.com/v1/places:searchNearby';
+const PLACES_SEARCH_TEXT = 'https://places.googleapis.com/v1/places:searchText';
+
+const TABLE_A_SUPPORTED_TYPES = new Set([
+  'hospital',
+  'doctor',
+  'dentist',
+  'pharmacy',
+  'medical_lab',
+  'physiotherapist',
+  'drugstore',
+]);
+
 async function queryGooglePlaces(
   lat: number,
   lng: number,
   radiusM: number,
   includedTypes: string[],
+  textQuery: string | undefined,
   maxResults: number,
   apiKey: string
 ): Promise<GooglePlace[]> {
-  if (includedTypes.length === 0) return [];
+  // If a textQuery is provided, use the robust searchText endpoint
+  if (textQuery && textQuery.trim().length > 0) {
+    const body: Record<string, unknown> = {
+      textQuery: textQuery.trim(),
+      maxResultCount: Math.min(maxResults, 20),
+      locationBias: {
+        circle: {
+          center: { latitude: lat, longitude: lng },
+          radius: radiusM,
+        },
+      },
+    };
+
+    const res = await fetch(PLACES_SEARCH_TEXT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': PLACES_FIELD_MASK,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (res.ok) {
+      const json = await res.json();
+      return (json.places as GooglePlace[]) || [];
+    }
+  }
+
+  // Filter types to only Table A supported types
+  const validTypes = includedTypes.filter((t) => TABLE_A_SUPPORTED_TYPES.has(t.toLowerCase()));
+  const effectiveTypes = validTypes.length > 0 ? validTypes : ['hospital', 'doctor'];
 
   const body: Record<string, unknown> = {
+    includedTypes: effectiveTypes.slice(0, 50),
     maxResultCount: Math.min(maxResults, 20),
     locationRestriction: {
       circle: {
@@ -145,11 +191,7 @@ async function queryGooglePlaces(
     },
   };
 
-  // Google Places API (New) limits includedTypes to 50 and one category group per request.
-  // We split the call per primary type if needed.
-  body.includedTypes = includedTypes.slice(0, 50);
-
-  const res = await fetch(PLACES_API_BASE, {
+  const res = await fetch(PLACES_SEARCH_NEARBY, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -161,7 +203,8 @@ async function queryGooglePlaces(
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Google Places API error ${res.status}: ${errText}`);
+    console.warn(`[places-search] Google Nearby API error ${res.status}: ${errText}`);
+    return [];
   }
 
   const json = await res.json();
@@ -179,6 +222,7 @@ export async function GET(request: NextRequest) {
   const lng = parseFloat(sp.get('lng') || sp.get('longitude') || '0');
   const radiusM = parseInt(sp.get('radius') || '5000', 10);
   const maxResults = parseInt(sp.get('maxResults') || '20', 10);
+  const query = sp.get('query') || sp.get('q') || undefined;
 
   if (!lat || !lng) {
     return NextResponse.json({ error: 'lat and lng are required parameters.' }, { status: 400 });
@@ -187,18 +231,18 @@ export async function GET(request: NextRequest) {
   const typesParam = sp.get('types') || '';
   const secondaryTypesParam = sp.get('secondaryTypes') || '';
 
-  const primaryTypes = typesParam ? typesParam.split(',').map((t) => t.trim()).filter(Boolean) : ['hospital', 'doctor', 'clinic'];
+  const primaryTypes = typesParam ? typesParam.split(',').map((t) => t.trim()).filter(Boolean) : ['hospital', 'doctor'];
   const secondaryTypes = secondaryTypesParam ? secondaryTypesParam.split(',').map((t) => t.trim()).filter(Boolean) : [];
 
   try {
     let places: GooglePlace[] = [];
 
     // Primary query
-    places = await queryGooglePlaces(lat, lng, radiusM, primaryTypes, maxResults, apiKey);
+    places = await queryGooglePlaces(lat, lng, radiusM, primaryTypes, query, maxResults, apiKey);
 
     // If primary returned < 2 results and secondary types exist, run secondary query
     if (places.length < 2 && secondaryTypes.length > 0) {
-      const secondaryPlaces = await queryGooglePlaces(lat, lng, radiusM, secondaryTypes, maxResults, apiKey);
+      const secondaryPlaces = await queryGooglePlaces(lat, lng, radiusM, secondaryTypes, undefined, maxResults, apiKey);
       // Deduplicate by ID
       const existingIds = new Set(places.map((p) => p.id));
       for (const p of secondaryPlaces) {
@@ -208,6 +252,7 @@ export async function GET(request: NextRequest) {
         }
       }
     }
+
 
     // Normalize to PRAGATI Facility shape
     const facilities = places

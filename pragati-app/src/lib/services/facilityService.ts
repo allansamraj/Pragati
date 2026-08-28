@@ -39,9 +39,14 @@ export interface NearbySearchParams {
 
 // ── SEARCH RESULT ─────────────────────────────────────────────────────────────
 export interface NearbySearchResult {
+  /** Specialty-filtered recommendations — for the RESULT LIST */
   facilities: FacilityWithMeta[];
+  /** ALL nearby healthcare facilities regardless of specialty — for the MAP */
+  allNearbyFacilities: FacilityWithMeta[];
   searchRadiusKm: number;
   totalInRadius: number;
+  /** Total geographic facilities found (for map, unfiltered) */
+  totalGeographicFacilities: number;
   isBestMatchMode: boolean;
   isExpandedRadius: boolean;
   hasSpecialtyMatch: boolean;
@@ -55,6 +60,7 @@ export interface NearbySearchResult {
   isOffline: boolean;
   lastSyncTime: string;
 }
+
 
 // ── IN-MEMORY CACHE (10 min TTL) ─────────────────────────────────────────────
 const discoveryCache = new Map<string, { data: FacilityWithMeta[]; timestamp: number }>();
@@ -72,8 +78,164 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LAYER 1: GOOGLE PLACES API (NEW) — server-side via /api/facilities/places-search
+// BROAD GEOGRAPHIC DISCOVERY — for the MAP LAYER (no specialty filter)
+// Queries all healthcare facility types regardless of clinical intent.
 // ─────────────────────────────────────────────────────────────────────────────
+const PLACES_SEARCH_TEXT_URL = "https://places.googleapis.com/v1/places:searchText";
+const PLACES_SEARCH_NEARBY_URL = "https://places.googleapis.com/v1/places:searchNearby";
+const PLACES_FIELDS = "places.id,places.displayName,places.formattedAddress,places.location,places.types,places.primaryType,places.businessStatus,places.regularOpeningHours,places.googleMapsUri,places.internationalPhoneNumber,places.nationalPhoneNumber";
+
+async function queryGooglePlacesInternal(
+  lat: number,
+  lng: number,
+  radiusM: number,
+  queryText?: string,
+  types?: string[]
+): Promise<FacilityWithMeta[]> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+
+  // If in browser, call the Next.js API route
+  if (typeof window !== "undefined") {
+    try {
+      const q = queryText ? `&query=${encodeURIComponent(queryText)}` : "";
+      const t = types && types.length > 0 ? `&types=${encodeURIComponent(types.join(","))}` : "";
+      const url = `/api/facilities/places-search?lat=${lat}&lng=${lng}&radius=${radiusM}${q}${t}&maxResults=20`;
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) return [];
+      const json = await res.json();
+      return (json.facilities || []).map((f: any) => {
+        const dist = haversineKm(lat, lng, f.lat, f.lng);
+        return {
+          ...f,
+          distanceKm: dist,
+          travelMinutes: calculateTravelMinutes(dist),
+          source: "google_places" as const,
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  // If on server-side and apiKey is available, query Google Places directly
+  if (apiKey) {
+    try {
+      let rawPlaces: any[] = [];
+
+      if (queryText && queryText.trim().length > 0) {
+        const res = await fetch(PLACES_SEARCH_TEXT_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": apiKey,
+            "X-Goog-FieldMask": PLACES_FIELDS,
+          },
+          body: JSON.stringify({
+            textQuery: queryText.trim(),
+            maxResultCount: 20,
+            locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: radiusM } },
+          }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          rawPlaces = json.places || [];
+        }
+      } else {
+        const validTypes = (types || ["hospital", "doctor"]).filter((t) =>
+          ["hospital", "doctor", "dentist", "pharmacy", "medical_lab", "physiotherapist", "drugstore"].includes(t.toLowerCase())
+        );
+        const res = await fetch(PLACES_SEARCH_NEARBY_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": apiKey,
+            "X-Goog-FieldMask": PLACES_FIELDS,
+          },
+          body: JSON.stringify({
+            includedTypes: validTypes.length > 0 ? validTypes : ["hospital", "doctor"],
+            maxResultCount: 20,
+            locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radius: radiusM } },
+          }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          rawPlaces = json.places || [];
+        }
+      }
+
+      return rawPlaces
+        .filter((p) => p.businessStatus !== "CLOSED_PERMANENTLY" && p.location)
+        .map((p) => {
+          const name = p.displayName?.text || "Healthcare Facility";
+          const pTypes = p.types || [];
+          const isGov = name.toLowerCase().includes("government") || name.toLowerCase().includes("govt") || name.toLowerCase().includes("phc") || name.toLowerCase().includes("uphc");
+          const ownership = isGov ? "GOVERNMENT" : "PRIVATE";
+          const category = classifyGooglePlaceTypes(pTypes);
+          const dist = haversineKm(lat, lng, p.location.latitude, p.location.longitude);
+
+          return {
+            id: `gpl-${p.id}`,
+            googlePlaceId: p.id,
+            name,
+            type: category === "HOSPITAL" ? "Hospital" : category === "DENTAL_CLINIC" ? "Dental Clinic" : category === "SKIN_CLINIC" ? "Dermatology Clinic" : category === "EYE_HOSPITAL" ? "Eye Hospital & Clinic" : category === "OPTICAL_SHOP" ? "Optical & Vision Centre" : category === "PHARMACY" ? "Pharmacy & Medicals" : category === "DIAGNOSTIC_CENTER" ? "Diagnostic & Scan Centre" : "Healthcare Clinic",
+            facilityType: (isGov ? (category === "HOSPITAL" ? "GOVERNMENT_HOSPITAL" : "GOVERNMENT_CLINIC") : (category === "HOSPITAL" ? "PRIVATE_HOSPITAL" : category === "PHARMACY" ? "PHARMACY" : category === "DIAGNOSTIC_CENTER" ? "DIAGNOSTIC_CENTER" : "PRIVATE_CLINIC")) as FacilityType,
+            category,
+            ownership,
+            ownershipSector: ownership,
+            lat: p.location.latitude,
+            lng: p.location.longitude,
+            latitude: p.location.latitude,
+            longitude: p.location.longitude,
+            address: p.formattedAddress || "",
+            city: "Chennai",
+            state: "Tamil Nadu",
+            district: "Chennai",
+            locality: "",
+            phone: p.internationalPhoneNumber || p.nationalPhoneNumber || undefined,
+            googleMapsUri: p.googleMapsUri,
+            isOpen: p.regularOpeningHours?.openNow ?? null,
+            openingHours: p.regularOpeningHours?.openNow === true ? "Open Now" : p.regularOpeningHours?.openNow === false ? "Closed" : "Hours on request",
+            specialties: ["General Medicine"],
+            services: ["Outpatient Consultation"],
+            emergencyAvailable: pTypes.includes("hospital") || isGov,
+            emergencyCapability: pTypes.includes("hospital"),
+            verified: true,
+            source: "google_places" as const,
+            distanceKm: dist,
+            travelMinutes: calculateTravelMinutes(dist),
+          };
+        });
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+async function fetchAllNearbyHealthcare(
+  lat: number,
+  lng: number,
+  radiusKm: number
+): Promise<FacilityWithMeta[]> {
+  const cacheKey = `geo_${lat.toFixed(3)}_${lng.toFixed(3)}_${radiusKm}`;
+  const cached = discoveryCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) return cached.data;
+
+  const radiusM = Math.round(radiusKm * 1000);
+  const facilities = await queryGooglePlacesInternal(lat, lng, radiusM, "hospital clinic doctor pharmacy lab dental healthcare");
+
+  if (facilities.length > 0) {
+    discoveryCache.set(cacheKey, { data: facilities, timestamp: Date.now() });
+  }
+  return facilities;
+}
+
 async function fetchGooglePlaces(
   lat: number,
   lng: number,
@@ -84,48 +246,16 @@ async function fetchGooglePlaces(
   const cached = discoveryCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) return cached.data;
 
-  try {
-    const radiusM = Math.round(radiusKm * 1000);
-    const primaryTypes = ctx.primaryGoogleTypes.join(",");
-    const secondaryTypes = ctx.secondaryGoogleTypes.join(",");
+  const radiusM = Math.round(radiusKm * 1000);
+  const queryText = `${ctx.specialty} clinic hospital`;
+  const facilities = await queryGooglePlacesInternal(lat, lng, radiusM, queryText, ctx.primaryGoogleTypes);
 
-    const url = `/api/facilities/places-search?lat=${lat}&lng=${lng}&radius=${radiusM}&types=${encodeURIComponent(primaryTypes)}&secondaryTypes=${encodeURIComponent(secondaryTypes)}&maxResults=20`;
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      console.warn(`[facilityService] Google Places route returned ${res.status}`);
-      return [];
-    }
-
-    const json = await res.json();
-    const raw: Record<string, unknown>[] = json.facilities || [];
-
-    const facilities: FacilityWithMeta[] = raw
-      .filter((f) => f.lat && f.lng)
-      .map((f) => {
-        const dist = haversineKm(lat, lng, f.lat as number, f.lng as number);
-        return {
-          ...(f as unknown as FacilityWithMeta),
-          distanceKm: dist,
-          travelMinutes: calculateTravelMinutes(dist),
-          source: "google_places" as const,
-        };
-      });
-
-    if (facilities.length > 0) {
-      discoveryCache.set(cacheKey, { data: facilities, timestamp: Date.now() });
-    }
-    return facilities;
-  } catch (err) {
-    console.warn("[facilityService] Google Places fetch error:", err);
-    return [];
+  if (facilities.length > 0) {
+    discoveryCache.set(cacheKey, { data: facilities, timestamp: Date.now() });
   }
+  return facilities;
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LAYER 2: OVERPASS OSM API — proper structured queries (replaces Photon geocoder)
@@ -540,6 +670,21 @@ function buildLegacyContext(specialty: string, needQuery: string, service: strin
   return mapIntentToFacilityRequirements(mockAnalysis);
 }
 
+const ALL_HEALTHCARE_OSM_TAGS = [
+  "amenity=hospital",
+  "amenity=clinic",
+  "amenity=pharmacy",
+  "amenity=dentist",
+  "healthcare=doctor",
+  "healthcare=centre",
+  "healthcare=hospital",
+  "healthcare=clinic",
+  "healthcare=dentist",
+  "healthcare=pharmacy",
+  "healthcare=laboratory",
+  "healthcare=optometrist",
+];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN EXPORT: getNearbyFacilities
 // Called identically by: Find Care page, PRAGATI Care chatbot, API routes
@@ -558,76 +703,137 @@ export async function getNearbyFacilities({
   sortBy = "nearest",
   intentContext,
 }: NearbySearchParams): Promise<NearbySearchResult> {
-  const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+  const isOffline = typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.onLine === false;
   const lastSyncTime = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 
-  // Build structured IntentContext
+  // Build structured IntentContext for clinical recommendation
   const ctx: IntentContext = intentContext || buildLegacyContext(specialty, needQuery, service, isEmergency);
 
-  let activeRadius = customRadiusKm !== undefined ? customRadiusKm : initialRadiusKm;
+  // Exact geographic radius for map (does not silently expand)
+  const mapRadiusKm = customRadiusKm !== undefined ? customRadiusKm : initialRadiusKm;
+  let recommendationRadiusKm = mapRadiusKm;
   let isExpandedRadius = false;
 
-  // ── 1. GOOGLE PLACES (primary, server-side) ──
-  let googleFacilities: FacilityWithMeta[] = [];
+  // ── 1. MAP DISCOVERY LAYER: Fetch ALL nearby healthcare facilities ──
+  let broadGoogleFacilities: FacilityWithMeta[] = [];
+  let broadOsmFacilities: FacilityWithMeta[] = [];
+
   if (!isOffline) {
-    googleFacilities = await fetchGooglePlaces(lat, lng, Math.max(activeRadius, 8), ctx);
+    try {
+      broadGoogleFacilities = await fetchAllNearbyHealthcare(lat, lng, Math.max(mapRadiusKm, 5));
+    } catch (e) {
+      console.warn("[facilityService] Broad Google Places search error:", e);
+    }
   }
 
-  // ── 2. OSM OVERPASS (fallback/supplement) ──
-  let osmFacilities: FacilityWithMeta[] = [];
-  if (!isOffline && googleFacilities.length < 3) {
-    osmFacilities = await fetchOverpassOSM(lat, lng, Math.max(activeRadius, 8), ctx.osmHealthcareTags);
+  // Also query specialty-specific Google Places if user asked for a specific specialty
+  let specialtyGoogleFacilities: FacilityWithMeta[] = [];
+  if (!isOffline && ctx.specialty !== "General Medicine") {
+    try {
+      specialtyGoogleFacilities = await fetchGooglePlaces(lat, lng, Math.max(mapRadiusKm, 8), ctx);
+    } catch (e) {
+      console.warn("[facilityService] Specialty Google Places error:", e);
+    }
   }
 
-  // ── 3. PRAGATI VERIFIED REGISTRY (always included) ──
+  // Fallback OSM if needed
+  if (!isOffline && broadGoogleFacilities.length < 3 && specialtyGoogleFacilities.length < 2) {
+    try {
+      broadOsmFacilities = await fetchOverpassOSM(lat, lng, Math.max(mapRadiusKm, 8), ALL_HEALTHCARE_OSM_TAGS);
+    } catch (e) {
+      console.warn("[facilityService] Broad OSM search error:", e);
+    }
+  }
+
+  // PRAGATI Verified Registry
   const verifiedFacilities = getVerifiedRegistry(lat, lng);
 
-  // ── 4. COMBINE + DEDUPLICATE ──
-  let allFacilities = deduplicateFacilities([...googleFacilities, ...osmFacilities, ...verifiedFacilities]);
+  // ── 2. COMBINE & DEDUPLICATE ALL DISCOVERED FACILITIES ──
+  let rawAllDiscovered = deduplicateFacilities([
+    ...specialtyGoogleFacilities,
+    ...broadGoogleFacilities,
+    ...broadOsmFacilities,
+    ...verifiedFacilities,
+  ]);
 
-  // Recalculate distances from user GPS (normalize any drift)
-  allFacilities = allFacilities.map((f) => ({
-    ...f,
-    distanceKm: haversineKm(lat, lng, f.lat, f.lng),
-    travelMinutes: calculateTravelMinutes(haversineKm(lat, lng, f.lat, f.lng)),
-  }));
+  // Recalculate distance from user GPS
+  rawAllDiscovered = rawAllDiscovered.map((f) => {
+    const dist = haversineKm(lat, lng, f.lat, f.lng);
+    return {
+      ...f,
+      distanceKm: dist,
+      travelMinutes: calculateTravelMinutes(dist),
+    };
+  });
 
-  // ── 5. HARD EXCLUSIONS (specialty-based) ──
-  allFacilities = applyHardExclusions(allFacilities, ctx);
+  // Sector filter helper
+  const filterBySector = (list: FacilityWithMeta[]) => {
+    if (facilityType === "GOVERNMENT") {
+      return list.filter(
+        (f) => f.ownershipSector === "GOVERNMENT" || f.ownership === "government" || f.facilityType.startsWith("GOVERNMENT")
+      );
+    }
+    if (facilityType === "PRIVATE") {
+      return list.filter(
+        (f) =>
+          f.ownershipSector === "PRIVATE" ||
+          f.ownership === "private" ||
+          f.ownership === "private_empaneled" ||
+          f.facilityType.startsWith("PRIVATE") ||
+          f.facilityType === "DIAGNOSTIC_CENTER" ||
+          f.facilityType === "PHARMACY"
+      );
+    }
+    return list;
+  };
 
-  // ── 6. OWNERSHIP SECTOR FILTER ──
-  if (facilityType === "GOVERNMENT") {
-    allFacilities = allFacilities.filter(
-      (f) => f.ownershipSector === "GOVERNMENT" || f.ownership === "government" || f.facilityType.startsWith("GOVERNMENT")
-    );
-  } else if (facilityType === "PRIVATE") {
-    allFacilities = allFacilities.filter(
-      (f) => f.ownershipSector === "PRIVATE" || f.ownership === "private" || f.ownership === "private_empaneled" || f.facilityType.startsWith("PRIVATE") || f.facilityType === "DIAGNOSTIC_CENTER" || f.facilityType === "PHARMACY"
-    );
-  }
+  // ── MAP LAYER: Strict geographic radius filter (NO specialty exclusions) ──
+  let mapFacilities = rawAllDiscovered.filter((f) => (f.distanceKm ?? 999) <= mapRadiusKm);
+  mapFacilities = filterBySector(mapFacilities);
+  // Sort map facilities by distance
+  mapFacilities.sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
 
-  // ── 7. GEOGRAPHIC RADIUS FILTER (adaptive) ──
+  // ── 3. RECOMMENDATION LAYER: Apply specialty filtering & scoring ──
+  let clinicalCandidates = applyHardExclusions(rawAllDiscovered, ctx);
+  clinicalCandidates = filterBySector(clinicalCandidates);
+
+  // Filter clinical candidates by radius (with adaptive expansion only if radius wasn't manually set)
+  let inClinicalRadius: FacilityWithMeta[] = [];
   if (customRadiusKm !== undefined) {
-    allFacilities = allFacilities.filter((f) => (f.distanceKm ?? 999) <= customRadiusKm);
-    activeRadius = customRadiusKm;
+    inClinicalRadius = clinicalCandidates.filter((f) => (f.distanceKm ?? 999) <= customRadiusKm);
+    recommendationRadiusKm = customRadiusKm;
   } else {
-    activeRadius = 5;
-    let inRadius = allFacilities.filter((f) => (f.distanceKm ?? 999) <= activeRadius);
-    if (inRadius.length < 2) { activeRadius = 10; inRadius = allFacilities.filter((f) => (f.distanceKm ?? 999) <= activeRadius); isExpandedRadius = true; }
-    if (inRadius.length < 1) { activeRadius = 25; inRadius = allFacilities.filter((f) => (f.distanceKm ?? 999) <= activeRadius); isExpandedRadius = true; }
-    allFacilities = inRadius;
+    recommendationRadiusKm = 5;
+    inClinicalRadius = clinicalCandidates.filter((f) => (f.distanceKm ?? 999) <= recommendationRadiusKm);
+
+    if (inClinicalRadius.length < 2) {
+      recommendationRadiusKm = 10;
+      inClinicalRadius = clinicalCandidates.filter((f) => (f.distanceKm ?? 999) <= recommendationRadiusKm);
+      isExpandedRadius = true;
+    }
+    if (inClinicalRadius.length < 1) {
+      recommendationRadiusKm = 25;
+      inClinicalRadius = clinicalCandidates.filter((f) => (f.distanceKm ?? 999) <= recommendationRadiusKm);
+      isExpandedRadius = true;
+    }
   }
 
-  // ── 8. SUITABILITY SCORING ──
+  // Suitability scoring
   let hasSpecialtyMatch = false;
-  const scoredFacilities = allFacilities.map((fac) => {
+  const scoredClinical = inClinicalRadius.map((fac) => {
     const { score, isDirectSpecialtyMatch } = calculateSuitabilityScore(fac, ctx);
     if (isDirectSpecialtyMatch) hasSpecialtyMatch = true;
     return { ...fac, matchScore: score, _isDirectSpecialtyMatch: isDirectSpecialtyMatch };
   });
 
-  // ── 9. RANKING (specialty matches first, then by distance) ──
-  const sorted = scoredFacilities.sort((a, b) => {
+  // Strict specialty check: If strict specialty (e.g. Dentistry, Optometry) and NO direct specialty match, do not fill with unrelated facilities
+  let eligibleClinical = scoredClinical;
+  if (ctx.isStrictSpecialty && !hasSpecialtyMatch) {
+    eligibleClinical = [];
+  }
+
+  // Ranking
+  const sortedClinical = eligibleClinical.sort((a, b) => {
     const aMatch = a._isDirectSpecialtyMatch;
     const bMatch = b._isDirectSpecialtyMatch;
     if (aMatch && !bMatch) return -1;
@@ -638,19 +844,23 @@ export async function getNearbyFacilities({
     return (b.matchScore ?? 0) - (a.matchScore ?? 0);
   });
 
-  // Strip internal sort key
-  const finalFacilities = sorted.map(({ _isDirectSpecialtyMatch, ...fac }) => fac as FacilityWithMeta);
+  const finalClinicalFacilities = sortedClinical.map(({ _isDirectSpecialtyMatch, ...fac }) => fac as FacilityWithMeta);
 
   const primarySource =
-    googleFacilities.length > 0 ? "google_places" :
-    osmFacilities.length > 0 ? "openstreetmap" : "pragati_verified";
+    broadGoogleFacilities.length > 0 || specialtyGoogleFacilities.length > 0
+      ? "google_places"
+      : broadOsmFacilities.length > 0
+      ? "openstreetmap"
+      : "pragati_verified";
 
   return {
-    facilities: finalFacilities,
-    searchRadiusKm: activeRadius,
-    totalInRadius: finalFacilities.length,
+    facilities: finalClinicalFacilities,
+    allNearbyFacilities: mapFacilities,
+    searchRadiusKm: mapRadiusKm,
+    totalInRadius: finalClinicalFacilities.length,
+    totalGeographicFacilities: mapFacilities.length,
     isBestMatchMode: sortBy === "best_match",
-    isExpandedRadius,
+    isExpandedRadius: isExpandedRadius && customRadiusKm === undefined,
     hasSpecialtyMatch,
     noSpecialtyFacilitiesFound: !hasSpecialtyMatch && ctx.isStrictSpecialty,
     queryAnalyzed: {
@@ -663,6 +873,7 @@ export async function getNearbyFacilities({
     lastSyncTime,
   };
 }
+
 
 /**
  * Returns emergency facilities strictly sorted by proximity.
