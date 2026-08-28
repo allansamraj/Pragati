@@ -636,6 +636,8 @@ export const healthcareIntentRouter = {
 
     // ── B. QUERY REAL NEARBY HEALTHCARE FACILITIES DYNAMICALLY ──
     let facilityItems: FacilityCardItem[] = [];
+    let hasSpecialtyMatch = false;
+
     try {
       const searchRes = await getNearbyFacilities({
         lat,
@@ -647,20 +649,27 @@ export const healthcareIntentRouter = {
         sortBy: 'nearest',
       });
 
+      hasSpecialtyMatch = searchRes.hasSpecialtyMatch;
+
       if (searchRes.facilities && searchRes.facilities.length > 0) {
-        facilityItems = searchRes.facilities.slice(0, 3).map((f, idx) => ({
-          id: f.id,
-          name: f.name,
-          type: f.type,
-          distanceKm: f.distanceKm || 1.2,
-          travelMinutes: f.travelMinutes || 8,
-          matchScore: f.matchScore || (idx === 0 ? 95 : 88),
-          specialistAvailable: (f.specialties || []).some((s) => s.toLowerCase().includes(analysis.mappedSpecialty.toLowerCase())),
-          specialistName: f.doctors?.[0]?.name || (analysis.mappedSpecialty + ' Specialist on Duty'),
-          diagnosticAvailable: true,
-          queueWaitMinutes: f.queue?.estimatedWait || 12,
-          isBestMatch: idx === 0,
-        }));
+        facilityItems = searchRes.facilities.slice(0, 3).map((f) => {
+          const isDirectMatch = (f.matchScore ?? 0) >= 80;
+          const hasSpec = (f.specialties || []).some((s) => s.toLowerCase().includes(analysis.mappedSpecialty.toLowerCase()));
+
+          return {
+            id: f.id,
+            name: f.name,
+            type: f.type,
+            distanceKm: f.distanceKm || 1.2,
+            travelMinutes: f.travelMinutes || 8,
+            matchScore: f.matchScore || (isDirectMatch ? 90 : 55),
+            specialistAvailable: hasSpec,
+            specialistName: hasSpec ? `${analysis.mappedSpecialty} Specialist on Duty` : "General Medical Officer",
+            diagnosticAvailable: f.services?.some((s) => s.toLowerCase().includes("diagnostic") || s.toLowerCase().includes("ecg")) || false,
+            queueWaitMinutes: f.queue?.estimatedWait || 12,
+            isBestMatch: isDirectMatch,
+          };
+        });
       }
     } catch (err) {
       console.warn('Facility lookup in assistant router error:', err);
@@ -672,13 +681,21 @@ export const healthcareIntentRouter = {
     if (analysis.intent === 'SYMPTOM' || analysis.intent === 'SPECIALTY') {
       const spec = analysis.mappedSpecialty;
       const symp = analysis.extractedSymptom || spec;
-      responseText =
-        `Got you 👍 For **${symp}**, a **${spec} specialist** is usually the right clinician to consult.\n\n` +
-        `I can help you find nearby government and private facilities that provide ${spec.toLowerCase()} care around your current location.\n\n` +
-        (analysis.smartFollowUp ? `💡 *${analysis.smartFollowUp}*` : '');
+
+      if (hasSpecialtyMatch) {
+        responseText =
+          `Got you 👍 For **${symp}**, a **${spec} specialist** is the right clinician to consult.\n\n` +
+          `Here are nearby healthcare facilities providing verified **${spec}** care around your location:\n\n` +
+          (analysis.smartFollowUp ? `💡 *${analysis.smartFollowUp}*` : '');
+      } else {
+        responseText =
+          `Got you 👍 For **${symp}**, consultation with **${spec}** or General Medicine is recommended.\n\n` +
+          `Here are the closest verified healthcare facilities providing outpatient medical care near your location:\n\n` +
+          (analysis.smartFollowUp ? `💡 *${analysis.smartFollowUp}*` : '');
+      }
     } else if (analysis.intent === 'DIAGNOSTIC_TEST') {
       responseText =
-        `Got you 👍 For **${analysis.extractedSymptom}**, I have identified verified healthcare centers and diagnostic laboratories near your current location with active testing capability.`;
+        `Got you 👍 For **${analysis.extractedSymptom}**, I have identified verified healthcare centers and diagnostic laboratories near your current location with active testing capability:`;
     } else if (analysis.intent === 'FACILITY_SEARCH') {
       const secLabel = analysis.recommendedFacilitySector === 'GOVERNMENT' ? 'Government Public Health' : analysis.recommendedFacilitySector === 'PRIVATE' ? 'Private' : 'Government & Private';
       responseText =

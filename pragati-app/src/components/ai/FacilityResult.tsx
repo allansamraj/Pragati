@@ -17,9 +17,9 @@ export function FacilityResult({ facilities }: { facilities: FacilityCardItem[] 
         >
           <div className="flex items-start justify-between gap-2 mb-1.5">
             <div>
-              {f.isBestMatch && (
+              {f.isBestMatch && (f.matchScore ?? 0) >= 80 && (
                 <span className="text-[9px] font-extrabold uppercase tracking-wider text-burgundy-700 bg-blush border border-[rgba(124,45,45,0.18)] rounded px-1.5 py-0.5 mb-1 inline-block">
-                  ★ Best Match
+                  ★ Best Specialty Match
                 </span>
               )}
               <div className="text-[13.5px] font-bold leading-snug">{f.name}</div>
@@ -34,12 +34,15 @@ export function FacilityResult({ facilities }: { facilities: FacilityCardItem[] 
           </div>
 
           <div className="flex items-center gap-2.5 text-[11px] text-ink-secondary my-2 flex-wrap">
-            <span className="flex items-center gap-1 text-available-600 font-semibold">
-              <CheckCircle2 className="w-3 h-3" /> Specialist Available
-            </span>
-            <span className="flex items-center gap-1 text-available-600 font-semibold">
-              <CheckCircle2 className="w-3 h-3" /> ECG Open
-            </span>
+            {f.specialistAvailable ? (
+              <span className="flex items-center gap-1 text-available-600 font-semibold">
+                <CheckCircle2 className="w-3 h-3" /> Specialist Available
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-ink-secondary font-medium">
+                <CheckCircle2 className="w-3 h-3 text-ink-tertiary" /> General Outpatient OPD
+              </span>
+            )}
             <span className="flex items-center gap-1 text-ink-tertiary">
               <Clock className="w-3 h-3" /> ~{f.queueWaitMinutes}m wait
             </span>
@@ -50,7 +53,7 @@ export function FacilityResult({ facilities }: { facilities: FacilityCardItem[] 
               href="/patient/token"
               className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-burgundy-700 hover:bg-burgundy-800 text-white rounded-[7px] text-[11.5px] font-bold transition-colors"
             >
-              <Ticket className="w-3 h-3" /> Book Token #47
+              <Ticket className="w-3 h-3" /> Book Token
             </Link>
             <Link
               href="/patient/teleconsult"

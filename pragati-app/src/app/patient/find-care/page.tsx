@@ -582,7 +582,7 @@ function FindCareContent() {
             </div>
           ) : (
             facilities.map((facility, index) => {
-              const isBestMatch = isBestMatchMode && index === 0;
+              const isBestMatch = isBestMatchMode && (facility.matchScore ?? 0) >= 80 && index === 0;
               const isSelected = selectedFacilityId === facility.id;
 
               return (

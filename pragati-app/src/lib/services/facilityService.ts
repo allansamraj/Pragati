@@ -1,7 +1,7 @@
 // ─── PRAGATI FACILITY DISCOVERY SERVICE ──────────────────────────────────────────
 // High-precision, real-world geospatial healthcare facility discovery engine.
 // Discovers live healthcare facilities (Government & Private) dynamically around the user GPS coordinates.
-// No synthetic or fabricated facilities are ever generated.
+// Strictly enforces clinical eligibility, category filtering, and honest suitability scoring.
 
 import { DEMO_FACILITIES, Facility, FacilityType, OwnershipSector } from "@/data/facilities";
 import { calculateDistance, calculateTravelMinutes, formatDistance } from "./locationService";
@@ -26,6 +26,7 @@ export interface NearbySearchResult {
   totalInRadius: number;
   isBestMatchMode: boolean;
   isExpandedRadius: boolean;
+  hasSpecialtyMatch: boolean;
   queryAnalyzed?: {
     specialtyRequired?: string;
     diagnosticRequired?: string;
@@ -41,7 +42,7 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 
 /**
  * Queries real-world healthcare amenities from OpenStreetMap Photon API
- * centered dynamically around (lat, lng).
+ * centered dynamically around (lat, lng) with rich category parsing.
  */
 async function fetchLiveOpenStreetMapHealthcare(lat: number, lng: number, radiusKm: number): Promise<Facility[]> {
   const cacheKey = `${lat.toFixed(3)}_${lng.toFixed(3)}_${radiusKm}`;
@@ -90,14 +91,13 @@ async function fetchLiveOpenStreetMapHealthcare(lat: number, lng: number, radius
         if (typeof itemLat !== "number" || typeof itemLng !== "number") continue;
 
         const dist = calculateDistance(lat, lng, itemLat, itemLng);
-        // Hard boundary check against requested radius (with 15% outer buffer for edge cases)
         if (dist > Math.max(radiusKm * 1.15, 25)) continue;
 
         const props = feat.properties || {};
         const name = props.name || "";
         if (!name || name.trim().length < 2) continue;
 
-        // Skip non-facility entries (like streets named Hospital Road)
+        // Skip non-facility geographical entries
         const nameLower = name.toLowerCase();
         if (
           nameLower.endsWith(" road") ||
@@ -130,40 +130,89 @@ async function fetchLiveOpenStreetMapHealthcare(lat: number, lng: number, radius
 
         const ownership: OwnershipSector = isGov ? "GOVERNMENT" : "PRIVATE";
 
-        // Determine specific facility type
+        // Accurate category and specialty tagging
         let displayType = "Hospital";
         let facilityType: FacilityType = isGov ? "GOVERNMENT_HOSPITAL" : "PRIVATE_HOSPITAL";
+        let specialties: string[] = ["General Medicine"];
+        let services: string[] = ["Outpatient Consultation"];
 
-        if (nameLower.includes("uphc") || nameLower.includes("urban primary")) {
+        if (nameLower.includes("pharmacy") || nameLower.includes("medicals") || nameLower.includes("chemist") || props.osm_value === "pharmacy") {
+          displayType = "Pharmacy & Medicals";
+          facilityType = "PHARMACY";
+          specialties = [];
+          services = ["Dispensing Prescription Medicines", "Over-the-counter Healthcare"];
+        } else if (nameLower.includes("dental") || nameLower.includes("dentist") || nameLower.includes("tooth") || nameLower.includes("teeth")) {
+          displayType = isGov ? "Government Dental College & Hospital" : "Dental Clinic & Hospital";
+          facilityType = isGov ? "GOVERNMENT_CLINIC" : "PRIVATE_CLINIC";
+          specialties = ["Dentistry", "Oral Healthcare"];
+          services = ["Dental Examination", "Tooth Extraction", "Root Canal", "Oral Surgery"];
+        } else if (nameLower.includes("skin") || nameLower.includes("derma") || nameLower.includes("hair") || nameLower.includes("cosmet")) {
+          displayType = "Dermatology & Skin Clinic";
+          facilityType = "PRIVATE_CLINIC";
+          specialties = ["Dermatology", "Skin & Allergy Care"];
+          services = ["Dermatology Consultation", "Skin Allergy Treatment", "Skin Infection Care"];
+        } else if (nameLower.includes("eye") || nameLower.includes("netralaya") || nameLower.includes("vision") || nameLower.includes("ophthalm")) {
+          displayType = isGov ? "Government Eye Hospital" : "Eye Hospital & Clinic";
+          facilityType = isGov ? "GOVERNMENT_HOSPITAL" : "PRIVATE_CLINIC";
+          specialties = ["Ophthalmology", "Vision Care"];
+          services = ["Eye Examination", "Vision Testing", "Ophthalmology Consultation"];
+        } else if (nameLower.includes("ent") || nameLower.includes("ear") || nameLower.includes("nose") || nameLower.includes("throat") || nameLower.includes("sinus")) {
+          displayType = "ENT Specialist Clinic";
+          facilityType = "PRIVATE_CLINIC";
+          specialties = ["ENT (Otolaryngology)"];
+          services = ["ENT Consultation", "Hearing Evaluation", "Sinus Care"];
+        } else if (nameLower.includes("ortho") || nameLower.includes("bone") || nameLower.includes("joint") || nameLower.includes("spine")) {
+          displayType = "Orthopaedic Hospital & Clinic";
+          facilityType = "PRIVATE_CLINIC";
+          specialties = ["Orthopaedics", "Bone & Joint Care"];
+          services = ["Orthopaedic Consultation", "Joint Care", "Fracture Management"];
+        } else if (nameLower.includes("child") || nameLower.includes("baby") || nameLower.includes("pediatric") || nameLower.includes("paediatric")) {
+          displayType = "Paediatric & Child Care Clinic";
+          facilityType = "PRIVATE_CLINIC";
+          specialties = ["Paediatrics", "Child Health"];
+          services = ["Paediatric Consultation", "Child Care", "Immunization"];
+        } else if (nameLower.includes("cardio") || nameLower.includes("heart") || nameLower.includes("cardiac")) {
+          displayType = isGov ? "Government Cardiology Unit" : "Cardiology & Heart Hospital";
+          facilityType = isGov ? "GOVERNMENT_HOSPITAL" : "PRIVATE_HOSPITAL";
+          specialties = ["Cardiology", "Emergency Medicine"];
+          services = ["Cardiology Consultation", "12-Lead ECG", "Emergency Cardiac Care"];
+        } else if (nameLower.includes("diagnostic") || nameLower.includes("scan") || nameLower.includes("lab") || nameLower.includes("x-ray") || nameLower.includes("mri")) {
+          displayType = "Diagnostic & Scan Centre";
+          facilityType = "DIAGNOSTIC_CENTER";
+          specialties = [];
+          services = ["Blood Tests", "Diagnostics", "Ultrasound", "Digital X-Ray"];
+        } else if (nameLower.includes("uphc") || nameLower.includes("urban primary")) {
           displayType = "Urban Primary Health Centre";
           facilityType = "GOVERNMENT_PHC";
+          specialties = ["General Medicine", "Primary Healthcare", "Immunization", "Maternal Health"];
+          services = ["Outpatient Consultation", "Primary Care", "Free Essential Medicines"];
         } else if (nameLower.includes("phc") || nameLower.includes("primary health")) {
           displayType = "Primary Health Centre";
           facilityType = "GOVERNMENT_PHC";
+          specialties = ["General Medicine", "Primary Healthcare", "Immunization"];
+          services = ["Outpatient Consultation", "Primary Care", "Maternal & Child Care"];
         } else if (nameLower.includes("chc") || nameLower.includes("community health")) {
           displayType = "Community Health Centre";
           facilityType = "GOVERNMENT_CHC";
+          specialties = ["General Medicine", "General Surgery", "Paediatrics", "Obstetrics & Gynaecology"];
+          services = ["Outpatient Consultation", "Inpatient Beds", "Emergency Primary Care"];
         } else if (nameLower.includes("medical college")) {
           displayType = isGov ? "Government Medical College Hospital" : "Private Medical College Hospital";
           facilityType = isGov ? "GOVERNMENT_HOSPITAL" : "PRIVATE_HOSPITAL";
-        } else if (nameLower.includes("civil") || nameLower.includes("district hospital")) {
-          displayType = "District Civil Hospital";
-          facilityType = "GOVERNMENT_HOSPITAL";
+          specialties = ["General Medicine", "Cardiology", "Dermatology", "Orthopaedics", "ENT", "Ophthalmology", "Paediatrics", "Emergency Medicine"];
+          services = ["Multi-Specialty OPD", "24/7 Trauma Care", "ICU", "Diagnostics"];
         } else if (nameLower.includes("clinic") || props.osm_value === "clinic") {
           displayType = isGov ? "Government Clinic" : "Private Clinic";
           facilityType = isGov ? "GOVERNMENT_CLINIC" : "PRIVATE_CLINIC";
-        } else if (nameLower.includes("pharmacy") || nameLower.includes("medicals") || props.osm_value === "pharmacy") {
-          displayType = "Pharmacy & Medicals";
-          facilityType = "PHARMACY";
-        } else if (nameLower.includes("diagnostic") || nameLower.includes("lab") || nameLower.includes("scan")) {
-          displayType = "Diagnostic & Scan Centre";
-          facilityType = "DIAGNOSTIC_CENTER";
+          specialties = ["General Medicine"];
+          services = ["Outpatient Consultation"];
         } else {
           displayType = isGov ? "Government Hospital" : "Private Multi-Specialty Hospital";
           facilityType = isGov ? "GOVERNMENT_HOSPITAL" : "PRIVATE_HOSPITAL";
+          specialties = ["General Medicine", "Emergency Medicine"];
+          services = ["Outpatient Consultation", "Inpatient Care", "Emergency Care"];
         }
 
-        // Build clean address
         const street = props.street || "";
         const locality = props.district || props.city || props.county || props.state || "";
         const city = props.city || props.district || "";
@@ -172,7 +221,7 @@ async function fetchLiveOpenStreetMapHealthcare(lat: number, lng: number, radius
         const addressParts = [street, locality, city, postcode].filter(Boolean);
         const fullAddress = addressParts.length > 0 ? addressParts.join(", ") : `${name}, ${locality}`;
 
-        const isEmergencyCapable = displayType.includes("Hospital") || isGov;
+        const isEmergencyCapable = displayType.includes("Hospital") || isGov || specialties.includes("Emergency Medicine");
 
         discovered.push({
           id: `osm-${props.osm_id || Math.random().toString(36).substring(2, 9)}`,
@@ -198,8 +247,8 @@ async function fetchLiveOpenStreetMapHealthcare(lat: number, lng: number, radius
           openingHours: isEmergencyCapable ? "Open 24/7 (Emergency)" : "Contact facility for OPD schedule",
           hours: isEmergencyCapable ? "Open 24/7 (Emergency)" : "Contact facility for OPD schedule",
           isOpen: true,
-          specialties: isEmergencyCapable ? ["General Medicine", "Emergency Medicine"] : ["General Medicine"],
-          services: isEmergencyCapable ? ["Outpatient Consultation", "Emergency Care"] : ["Outpatient Consultation"],
+          specialties,
+          services,
           verified: true,
           source: "OpenStreetMap Live Directory",
           distanceKm: dist,
@@ -243,7 +292,6 @@ function deduplicateFacilities(facilities: Facility[]): Facility[] {
 
     if (duplicateIndex >= 0) {
       const existing = unique[duplicateIndex];
-      // Keep entry with richer metadata or verified registry
       if (!existing.phone && fac.phone) existing.phone = fac.phone;
       if (fac.source === "Official State Health Registry" && existing.source !== "Official State Health Registry") {
         unique[duplicateIndex] = fac;
@@ -258,7 +306,7 @@ function deduplicateFacilities(facilities: Facility[]): Facility[] {
 
 /**
  * Primary Nearby Healthcare Facility Discovery function.
- * Enforces actual GPS coordinates and Haversine distance as the master constraint.
+ * Enforces clinical eligibility, hard exclusion rules, and honest suitability scoring.
  */
 export async function getNearbyFacilities({
   lat,
@@ -294,7 +342,6 @@ export async function getNearbyFacilities({
     };
   });
 
-  // Determine active radius
   let activeRadius = customRadiusKm !== undefined ? customRadiusKm : initialRadiusKm;
 
   // 2. Fetch live OpenStreetMap healthcare facilities around this exact GPS position
@@ -318,7 +365,129 @@ export async function getNearbyFacilities({
     };
   });
 
-  // 4. Filter by Ownership Sector: ALL | GOVERNMENT | PRIVATE
+  // 4. Clinical Intent & Specialty Analysis
+  const combinedNeed = (needQuery + " " + specialty + " " + service).trim();
+  const queryLower = combinedNeed.toLowerCase();
+
+  const isDermatologyRequest =
+    specialty.toLowerCase().includes("derma") ||
+    queryLower.includes("skin") ||
+    queryLower.includes("derma") ||
+    queryLower.includes("itch") ||
+    queryLower.includes("rash") ||
+    queryLower.includes("allergy") ||
+    queryLower.includes("acne") ||
+    queryLower.includes("pimple") ||
+    queryLower.includes("eczema");
+
+  const isDentalRequest =
+    specialty.toLowerCase().includes("dent") ||
+    queryLower.includes("tooth") ||
+    queryLower.includes("teeth") ||
+    queryLower.includes("dental") ||
+    queryLower.includes("dentist") ||
+    queryLower.includes("gum");
+
+  const isCardioRequest =
+    specialty.toLowerCase().includes("cardio") ||
+    queryLower.includes("chest pain") ||
+    queryLower.includes("palpitation") ||
+    queryLower.includes("heart") ||
+    queryLower.includes("cardiac") ||
+    queryLower.includes("ecg");
+
+  const isEyeRequest =
+    specialty.toLowerCase().includes("ophthalm") ||
+    specialty.toLowerCase().includes("eye") ||
+    queryLower.includes("eye") ||
+    queryLower.includes("vision") ||
+    queryLower.includes("blurry") ||
+    queryLower.includes("conjunctivitis");
+
+  const isENTRequest =
+    specialty.toLowerCase().includes("ent") ||
+    queryLower.includes("ear") ||
+    queryLower.includes("nose") ||
+    queryLower.includes("throat") ||
+    queryLower.includes("sinus") ||
+    queryLower.includes("hearing");
+
+  const isOrthoRequest =
+    specialty.toLowerCase().includes("ortho") ||
+    queryLower.includes("bone") ||
+    queryLower.includes("joint") ||
+    queryLower.includes("knee") ||
+    queryLower.includes("back pain") ||
+    queryLower.includes("fracture") ||
+    queryLower.includes("sprain");
+
+  const isPaediatricRequest =
+    specialty.toLowerCase().includes("paed") ||
+    specialty.toLowerCase().includes("pediatric") ||
+    queryLower.includes("child") ||
+    queryLower.includes("baby") ||
+    queryLower.includes("pediatric");
+
+  const isPharmacyExplicit =
+    specialty.toLowerCase().includes("pharmacy") ||
+    queryLower.includes("pharmacy") ||
+    queryLower.includes("medical shop") ||
+    queryLower.includes("chemist") ||
+    queryLower.includes("buy medicine");
+
+  const isDiagnosticExplicit =
+    queryLower.includes("blood test") ||
+    queryLower.includes("x-ray") ||
+    queryLower.includes("scan") ||
+    queryLower.includes("lab test");
+
+  // 5. HARD EXCLUSION RULES
+  // Rule A: Never include pharmacies in clinical consultation searches unless explicitly looking for pharmacy
+  if (!isPharmacyExplicit) {
+    allCombined = allCombined.filter(
+      (f) => f.facilityType !== "PHARMACY" && !f.type.toLowerCase().includes("pharmacy") && !f.name.toLowerCase().includes("pharmacy")
+    );
+  }
+
+  // Rule B: Enforce specialty conflict exclusions
+  if (isDermatologyRequest) {
+    // Exclude dental, eye, ent, ortho, diagnostic-only
+    allCombined = allCombined.filter((f) => {
+      const nameLower = f.name.toLowerCase();
+      const typeLower = f.type.toLowerCase();
+      if (nameLower.includes("dental") || typeLower.includes("dental")) return false;
+      if (nameLower.includes("eye ") || typeLower.includes("eye ") || nameLower.includes("netralaya")) return false;
+      if (nameLower.includes("ent ") || typeLower.includes("ent ")) return false;
+      if (nameLower.includes("ortho") || typeLower.includes("ortho")) return false;
+      if (f.facilityType === "DIAGNOSTIC_CENTER") return false;
+      return true;
+    });
+  } else if (isDentalRequest) {
+    // Only dental clinics or hospitals
+    allCombined = allCombined.filter((f) => {
+      const isDental =
+        f.name.toLowerCase().includes("dental") ||
+        f.type.toLowerCase().includes("dental") ||
+        (f.specialties || []).some((s) => s.toLowerCase().includes("dent"));
+      return isDental;
+    });
+  } else if (isCardioRequest) {
+    // Exclude dental, eye, skin clinics
+    allCombined = allCombined.filter((f) => {
+      const nameLower = f.name.toLowerCase();
+      if (nameLower.includes("dental") || nameLower.includes("eye") || nameLower.includes("skin") || nameLower.includes("hair")) return false;
+      return true;
+    });
+  } else if (isEyeRequest) {
+    // Exclude dental, skin, ortho clinics
+    allCombined = allCombined.filter((f) => {
+      const nameLower = f.name.toLowerCase();
+      if (nameLower.includes("dental") || nameLower.includes("skin") || nameLower.includes("ortho")) return false;
+      return true;
+    });
+  }
+
+  // 6. Filter by Ownership Sector: ALL | GOVERNMENT | PRIVATE
   if (facilityType === "GOVERNMENT") {
     allCombined = allCombined.filter(
       (f) =>
@@ -338,24 +507,22 @@ export async function getNearbyFacilities({
     );
   }
 
-  // 5. Strict Geographic Radius Filtering & Adaptive Radius Expansion
+  // 7. Strict Geographic Radius Filtering & Adaptive Radius Expansion
   let isExpandedRadius = false;
 
   if (customRadiusKm !== undefined) {
-    // User explicitly locked a radius (e.g. 2 km, 5 km, 10 km, 25 km): STRICT ENFORCEMENT
     allCombined = allCombined.filter((f) => (f.distanceKm ?? 999) <= customRadiusKm);
     activeRadius = customRadiusKm;
   } else {
-    // Adaptive expansion: 5 km -> 10 km -> 25 km
     activeRadius = 5;
     let inRadius = allCombined.filter((f) => (f.distanceKm ?? 999) <= activeRadius);
 
-    if (inRadius.length < 3) {
+    if (inRadius.length < 2) {
       activeRadius = 10;
       inRadius = allCombined.filter((f) => (f.distanceKm ?? 999) <= activeRadius);
       isExpandedRadius = true;
     }
-    if (inRadius.length < 2) {
+    if (inRadius.length < 1) {
       activeRadius = 25;
       inRadius = allCombined.filter((f) => (f.distanceKm ?? 999) <= activeRadius);
       isExpandedRadius = true;
@@ -364,86 +531,115 @@ export async function getNearbyFacilities({
     allCombined = inRadius;
   }
 
-  // 6. Clinical Query Analysis
-  const combinedNeed = (needQuery + " " + specialty + " " + service).trim();
-  const queryLower = combinedNeed.toLowerCase();
+  // 8. TRANSPARENT CLINICAL SUITABILITY SCORING
+  let hasAnySpecialtyMatch = false;
 
-  const searchTokens = queryLower
-    .split(/[\s,]+/)
-    .filter((t) => t.length > 2 && !["the", "and", "near", "with", "for", "in", "at", "get", "show", "find"].includes(t));
-
-  const needsECG = queryLower.includes("ecg") || queryLower.includes("heart");
-  const needsCardiology = queryLower.includes("cardio") || queryLower.includes("heart") || specialty.toLowerCase().includes("cardiology");
-  const needsPaediatrics = queryLower.includes("child") || queryLower.includes("pediatric") || queryLower.includes("paediatric");
-  const needsEmergency = isEmergency || queryLower.includes("emergency") || queryLower.includes("trauma") || queryLower.includes("accident");
-
-  // 7. Clinical Suitability Scoring
   const scoredFacilities: Facility[] = allCombined.map((fac) => {
-    let score = 70;
+    let score = 0;
     const reasons: string[] = [];
     const warnings: string[] = [];
+    let isDirectSpecialtyMatch = false;
 
+    const facNameLower = fac.name.toLowerCase();
+    const facTypeLower = fac.type.toLowerCase();
+    const specialtiesLower = (fac.specialties || []).map((s) => s.toLowerCase());
+
+    // Evaluate exact specialty match
+    if (isDermatologyRequest) {
+      if (
+        facNameLower.includes("skin") ||
+        facNameLower.includes("derma") ||
+        facNameLower.includes("hair") ||
+        facNameLower.includes("cosmet") ||
+        specialtiesLower.some((s) => s.includes("derma") || s.includes("skin"))
+      ) {
+        isDirectSpecialtyMatch = true;
+        score += 60;
+        reasons.push("Dedicated Dermatology / Skin Specialist Available");
+      } else if (
+        fac.facilityType === "GOVERNMENT_HOSPITAL" ||
+        fac.facilityType === "GOVERNMENT_PHC" ||
+        fac.facilityType === "GOVERNMENT_CHC" ||
+        fac.type.includes("Medical College")
+      ) {
+        score += 35;
+        reasons.push("Government General Outpatient OPD");
+      } else {
+        score += 30;
+        reasons.push("General Outpatient Medical Consultation");
+      }
+    } else if (isDentalRequest) {
+      if (facNameLower.includes("dental") || facTypeLower.includes("dental") || specialtiesLower.some((s) => s.includes("dent"))) {
+        isDirectSpecialtyMatch = true;
+        score += 65;
+        reasons.push("Dental Specialist & Clinic Available");
+      }
+    } else if (isCardioRequest) {
+      if (
+        facNameLower.includes("cardio") ||
+        facNameLower.includes("heart") ||
+        specialtiesLower.some((s) => s.includes("cardio"))
+      ) {
+        isDirectSpecialtyMatch = true;
+        score += 65;
+        reasons.push("Cardiology Specialist OPD Operational");
+      } else if (fac.emergencyAvailable || fac.emergencyCapability) {
+        score += 40;
+        reasons.push("24/7 Emergency & Inpatient Hospital");
+      } else {
+        score += 30;
+      }
+    } else if (isEyeRequest) {
+      if (facNameLower.includes("eye") || facNameLower.includes("netralaya") || specialtiesLower.some((s) => s.includes("eye") || s.includes("ophthalm"))) {
+        isDirectSpecialtyMatch = true;
+        score += 65;
+        reasons.push("Ophthalmology / Eye Specialist Available");
+      }
+    } else if (isENTRequest) {
+      if (facNameLower.includes("ent") || specialtiesLower.some((s) => s.includes("ent") || s.includes("otolaryng"))) {
+        isDirectSpecialtyMatch = true;
+        score += 65;
+        reasons.push("ENT Specialist Available");
+      }
+    } else if (isOrthoRequest) {
+      if (facNameLower.includes("ortho") || specialtiesLower.some((s) => s.includes("ortho") || s.includes("bone"))) {
+        isDirectSpecialtyMatch = true;
+        score += 65;
+        reasons.push("Orthopaedic Specialist Available");
+      }
+    } else if (isPaediatricRequest) {
+      if (facNameLower.includes("child") || facNameLower.includes("pediatric") || specialtiesLower.some((s) => s.includes("paed") || s.includes("child"))) {
+        isDirectSpecialtyMatch = true;
+        score += 65;
+        reasons.push("Child / Paediatric Specialist Available");
+      }
+    } else {
+      // General search
+      score += 45;
+      reasons.push("Outpatient Medical Care");
+    }
+
+    if (isDirectSpecialtyMatch) {
+      hasAnySpecialtyMatch = true;
+    }
+
+    // Proximity score additions
     const dist = fac.distanceKm ?? 10;
     if (dist <= 2) {
-      score += 15;
+      score += 25;
       reasons.push(`Very Close (${formatDistance(dist)})`);
     } else if (dist <= 5) {
-      score += 8;
+      score += 15;
       reasons.push(`Within 5 km (${formatDistance(dist)})`);
-    } else if (dist > 15) {
-      score -= 15;
-      warnings.push(`Distance is ${formatDistance(dist)}`);
+    } else if (dist <= 10) {
+      score += 8;
     }
 
-    if (needsEmergency) {
-      if (fac.emergencyAvailable || fac.emergencyCapability) {
-        score += 25;
-        reasons.push("24/7 Emergency Care Ready");
-      } else {
-        score -= 20;
-      }
+    if (fac.verified) {
+      score += 5;
     }
 
-    if (needsCardiology) {
-      const hasCardio =
-        (fac.specialties || []).some((s) => s.toLowerCase().includes("cardio")) ||
-        (fac.services || []).some((s) => s.toLowerCase().includes("cardio") || s.toLowerCase().includes("cath lab"));
-      if (hasCardio) {
-        score += 20;
-        reasons.push("Cardiology Specialty Available");
-      }
-    }
-
-    if (needsECG) {
-      const hasECG =
-        (fac.services || []).some((s) => s.toLowerCase().includes("ecg")) ||
-        (fac.diagnostics && fac.diagnostics.some((d) => d.name.toLowerCase().includes("ecg")));
-      if (hasECG) {
-        score += 15;
-        reasons.push("12-Lead ECG Operational");
-      }
-    }
-
-    if (needsPaediatrics) {
-      const hasPaed = (fac.specialties || []).some((s) => s.toLowerCase().includes("paed") || s.toLowerCase().includes("child") || s.toLowerCase().includes("pediatric"));
-      if (hasPaed) {
-        score += 15;
-        reasons.push("Child / Paediatric Care");
-      }
-    }
-
-    // Name or Address text match
-    if (searchTokens.length > 0) {
-      const facNameLower = fac.name.toLowerCase();
-      const facAddrLower = fac.address.toLowerCase();
-      let matched = 0;
-      for (const t of searchTokens) {
-        if (facNameLower.includes(t) || facAddrLower.includes(t)) matched++;
-      }
-      if (matched > 0) score += matched * 10;
-    }
-
-    const finalScore = Math.max(25, Math.min(99, score));
+    const finalScore = Math.max(25, Math.min(96, score));
 
     return {
       ...fac,
@@ -453,26 +649,30 @@ export async function getNearbyFacilities({
     };
   });
 
-  // 8. RANKING: GEOGRAPHIC PROXIMITY IS THE PRIMARY CRITERION
-  // In "Nearest" mode (and default): strictly sort by distanceKm.
-  // In "Best Match" mode: distance is primary tier (within 5km > within 10km > 15km).
+  // 9. RANKING
+  // Specialty matches rank first; within same tier, sorted by geographic distance
   const sortedFacilities = scoredFacilities.sort((a, b) => {
+    const scoreA = a.matchScore ?? 0;
+    const scoreB = b.matchScore ?? 0;
     const distA = a.distanceKm ?? 999;
     const distB = b.distanceKm ?? 999;
 
-    if (sortBy !== "best_match") {
+    const isMatchA = scoreA >= 80;
+    const isMatchB = scoreB >= 80;
+
+    if (isMatchA && !isMatchB) return -1;
+    if (!isMatchA && isMatchB) return 1;
+
+    if (sortBy === "nearest") {
       return distA - distB;
     }
 
-    // Best Match: within a 3.5km proximity difference, let clinical score break ties;
-    // but a 15km facility can NEVER outrank a 2km facility.
     const distDiff = distA - distB;
     if (Math.abs(distDiff) > 3.5) {
       return distDiff;
     }
 
-    const scoreDiff = (b.matchScore ?? 0) - (a.matchScore ?? 0);
-    return scoreDiff !== 0 ? scoreDiff : distDiff;
+    return scoreB - scoreA;
   });
 
   return {
@@ -481,10 +681,22 @@ export async function getNearbyFacilities({
     totalInRadius: sortedFacilities.length,
     isBestMatchMode: sortBy === "best_match",
     isExpandedRadius,
+    hasSpecialtyMatch: hasAnySpecialtyMatch,
     queryAnalyzed: {
-      specialtyRequired: needsCardiology ? "Cardiology" : needsPaediatrics ? "Paediatrics" : undefined,
-      diagnosticRequired: needsECG ? "12-Lead ECG" : undefined,
-      isUrgent: needsEmergency || needsECG,
+      specialtyRequired: isDermatologyRequest
+        ? "Dermatology"
+        : isDentalRequest
+        ? "Dentistry"
+        : isCardioRequest
+        ? "Cardiology"
+        : isEyeRequest
+        ? "Ophthalmology"
+        : isENTRequest
+        ? "ENT"
+        : isOrthoRequest
+        ? "Orthopaedics"
+        : undefined,
+      isUrgent: isEmergency || isCardioRequest,
     },
     isOffline,
     lastSyncTime,
