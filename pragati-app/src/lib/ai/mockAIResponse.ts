@@ -6,6 +6,7 @@ import { ChatMessage, UserRole, AssistantLanguage } from "./types";
 import { patientTools, doctorTools, providerTools, governmentTools } from "./assistantTools";
 import { symptomTriageEngine } from "./symptomTriageEngine";
 import { healthcareIntentRouter } from "./healthcareIntentRouter";
+import { complaintAssessmentEngine } from "./complaintAssessmentEngine";
 import { DEMO_PATIENT } from "@/data/patient";
 import { DEMO_FACILITIES } from "@/data/facilities";
 
@@ -44,6 +45,23 @@ async function handlePatientQuery(
   language: AssistantLanguage
 ): Promise<ChatMessage> {
   const q = rawQuery.trim().toLowerCase();
+
+  // If an active clinical assessment session is in progress, route incoming answers
+  const activeAssessment = complaintAssessmentEngine.getSession();
+  if (activeAssessment && activeAssessment.step === "ASSESSING") {
+    const isExplicitPortalOverride =
+      q === "what is my token" ||
+      q === "check my active token" ||
+      q === "when is my next appointment" ||
+      q === "what medicines am i taking" ||
+      q === "my records" ||
+      q === "clear" ||
+      q === "reset";
+
+    if (!isExplicitPortalOverride) {
+      return await complaintAssessmentEngine.processUserMessage(rawQuery, timestamp, msgId, language);
+    }
+  }
 
   // ── A. SIMPLE GREETINGS ONLY ("hi", "hello", "hey", "namaste", "vanakkam") ──
   const isSimpleGreeting =

@@ -438,8 +438,7 @@ async function fetchOverpassOSM(
       discoveryCache.set(cacheKey, { data: facilities, timestamp: Date.now() });
     }
     return facilities;
-  } catch (err) {
-    console.warn("[facilityService] Overpass OSM error:", err);
+  } catch {
     return [];
   }
 }

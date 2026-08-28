@@ -5,6 +5,7 @@
 import { ChatMessage, AssistantLanguage, FacilityCardItem } from './types';
 import { getNearbyFacilities } from '@/lib/services/facilityService';
 import { mapIntentToFacilityRequirements } from './facilityRequirementsMapper';
+import { complaintAssessmentEngine } from './complaintAssessmentEngine';
 
 export type HealthcareIntent =
   | 'SYMPTOM'
@@ -699,7 +700,39 @@ export const healthcareIntentRouter = {
     userLat?: number,
     userLng?: number
   ): Promise<ChatMessage> {
+    const qLower = rawQuery.trim().toLowerCase();
+    const activeAssessment = complaintAssessmentEngine.getSession();
     const analysis = this.classifyIntent(rawQuery);
+
+    // If active assessment is in progress, or user enters a symptom / complaint / specialty / red flag:
+    if (
+      activeAssessment ||
+      analysis.intent === 'SYMPTOM' ||
+      analysis.intent === 'EMERGENCY' ||
+      analysis.isEmergencyRedFlag ||
+      analysis.intent === 'SPECIALTY' ||
+      qLower.includes('fever') ||
+      qLower.includes('eye') ||
+      qLower.includes('chest') ||
+      qLower.includes('skin') ||
+      qLower.includes('itching') ||
+      qLower.includes('tooth') ||
+      qLower.includes('ear') ||
+      qLower.includes('throat') ||
+      qLower.includes('cough') ||
+      qLower.includes('headache') ||
+      qLower.includes('stomach') ||
+      qLower.includes('injury')
+    ) {
+      return await complaintAssessmentEngine.processUserMessage(
+        rawQuery,
+        timestamp,
+        msgId,
+        language,
+        userLat,
+        userLng
+      );
+    }
 
     // Retrieve active patient location from session or fallback
     let lat = userLat;
@@ -716,8 +749,8 @@ export const healthcareIntentRouter = {
         } catch {}
       }
       if (lat === undefined || lng === undefined) {
-        lat = 13.0827;
-        lng = 80.2707;
+        lat = 12.8696;
+        lng = 80.2200;
       }
     }
 
@@ -731,7 +764,7 @@ export const healthcareIntentRouter = {
     });
 
     // ── A. EMERGENCY RESPONSE ──
-    if (analysis.isEmergencyRedFlag || analysis.intent === 'EMERGENCY') {
+    if (analysis.isEmergencyRedFlag || (analysis.intent as string) === 'EMERGENCY') {
       return {
         id: msgId,
         sender: 'assistant',
@@ -814,7 +847,7 @@ export const healthcareIntentRouter = {
     // ── C. GENERATE PURPOSE-BUILT, EMPATHETIC, NON-GENERIC RESPONSE ──
     let responseText = '';
 
-    if (analysis.intent === 'SYMPTOM' || analysis.intent === 'SPECIALTY') {
+    if ((analysis.intent as string) === 'SYMPTOM' || (analysis.intent as string) === 'SPECIALTY') {
       const spec = analysis.mappedSpecialty;
       const symp = analysis.extractedSymptom || spec;
 
