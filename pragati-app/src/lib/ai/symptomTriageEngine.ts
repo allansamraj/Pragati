@@ -654,7 +654,7 @@ export const symptomTriageEngine = {
       travelMinutes: f.travelMinutes || (idx === 0 ? 10 : 22),
       matchScore: idx === 0 ? 94 : 82,
       specialistAvailable: true,
-      specialistName: f.doctors[0]?.name || "Medical Officer On Duty",
+      specialistName: f.doctors?.[0]?.name || "Medical Officer On Duty",
       diagnosticAvailable: true,
       diagnosticWaitMinutes: 10,
       queueWaitMinutes: f.queue?.estimatedWait || 15,

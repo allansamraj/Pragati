@@ -14,7 +14,7 @@ export default function GovernmentFacilitiesPage() {
   const [typeFilter, setTypeFilter] = useState("all");
 
   const filtered = DEMO_FACILITIES.filter((f: Facility) => {
-    const matchesSearch = f.name.toLowerCase().includes(search.toLowerCase()) || f.district.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = f.name.toLowerCase().includes(search.toLowerCase()) || (f.district || f.city || "").toLowerCase().includes(search.toLowerCase());
     const matchesType = typeFilter === "all" || f.type.toLowerCase().includes(typeFilter.toLowerCase());
     return matchesSearch && matchesType;
   });

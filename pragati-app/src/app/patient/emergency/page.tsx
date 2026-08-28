@@ -88,7 +88,7 @@ export default function EmergencyPage() {
 
               <div className="flex items-center gap-2 flex-shrink-0 pt-2 sm:pt-0">
                 <a
-                  href={`tel:${f.phone.replace(/[^0-9]/g, "") || "108"}`}
+                  href={`tel:${(f.phone || "108").replace(/[^0-9]/g, "")}`}
                   className="px-3 py-2 bg-white hover:bg-blush border border-[rgba(124,45,45,0.12)] text-rose-700 text-[12px] font-bold rounded-[8px] flex items-center gap-1 transition-colors"
                 >
                   <Phone className="w-3.5 h-3.5" /> Call

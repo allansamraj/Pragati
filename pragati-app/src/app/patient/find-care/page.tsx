@@ -16,6 +16,7 @@ import { useLanguage } from "@/lib/i18n";
 import { RealTimeFacilityMap } from "@/components/shared/RealTimeFacilityMap";
 import { useLocationContext } from "@/lib/context/LocationContext";
 import { NearbySearchResult } from "@/lib/services/facilityService";
+import { formatDistance } from "@/lib/services/locationService";
 
 type TriageLevel = "routine" | "urgent" | "emergency";
 
@@ -492,21 +493,28 @@ function FindCareContent() {
       </div>
 
       {/* ── RESULTS HEADER & SEARCH RADIUS ── */}
-      <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
-        <div>
-          <h2 className="text-[17px] font-extrabold text-ink-primary">
-            {isBestMatchMode ? "Best Match Healthcare Facilities" : "Nearby Healthcare Facilities"}
-          </h2>
-          <p className="text-[12px] text-ink-secondary">
-            {searchResult?.isExpandedRadius && customRadiusKm === undefined
-              ? `Showing additional facilities within ${effectiveRadiusKm} km (expanded search)`
-              : `Showing healthcare facilities within ${effectiveRadiusKm} km of your location`}
-          </p>
+      <div className="space-y-2 pt-1">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h2 className="text-[17px] font-extrabold text-ink-primary">
+              {isBestMatchMode ? "Best Match Healthcare Facilities" : "Nearby Healthcare Facilities"}
+            </h2>
+            <p className="text-[12px] text-ink-secondary">
+              Showing healthcare facilities within {effectiveRadiusKm} km of your location
+            </p>
+          </div>
+
+          <span className="text-[11.5px] font-bold text-burgundy-700 bg-blush border border-[rgba(124,45,45,0.12)] px-2.5 py-1 rounded-[6px]">
+            {facilities.length} Verified Facilities Found
+          </span>
         </div>
 
-        <span className="text-[11.5px] font-bold text-burgundy-700 bg-blush border border-[rgba(124,45,45,0.12)] px-2.5 py-1 rounded-[6px]">
-          {facilities.length} Verified Facilities Found
-        </span>
+        {searchResult?.isExpandedRadius && customRadiusKm === undefined && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-[10px] flex items-center gap-2 text-amber-900 text-[12px] font-semibold">
+            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <span>Showing verified facilities within {effectiveRadiusKm} km because fewer facilities were found within 10 km.</span>
+          </div>
+        )}
       </div>
 
       {/* ── FACILITY RESULTS & SPATIAL MAP ── */}
@@ -538,13 +546,17 @@ function FindCareContent() {
           ) : (
             facilities.map((facility, index) => {
               const isBestMatch = isBestMatchMode && index === 0;
+              const isSelected = selectedFacilityId === facility.id;
 
               return (
                 <motion.div
                   key={facility.id}
                   layout
-                  className={`bg-white rounded-[14px] border transition-all p-5 shadow-2xs ${
-                    isBestMatch
+                  onClick={() => setSelectedFacilityId(facility.id)}
+                  className={`bg-white rounded-[14px] border transition-all p-5 shadow-2xs cursor-pointer ${
+                    isSelected
+                      ? "border-burgundy-600/60 ring-2 ring-burgundy-600/20"
+                      : isBestMatch
                       ? "border-burgundy-600/40 ring-1 ring-burgundy-600/20"
                       : "border-[rgba(124,45,45,0.1)] hover:border-burgundy-300"
                   }`}
@@ -576,7 +588,7 @@ function FindCareContent() {
                         {facility.name}
                       </h3>
                       <div className="text-[12.5px] text-ink-secondary mt-0.5 flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-burgundy-700">{facility.distanceKm} km away</span>
+                        <span className="font-bold text-burgundy-700">{formatDistance(facility.distanceKm)} away</span>
                         <span>·</span>
                         <span>{facility.type}</span>
                         <span>·</span>
@@ -608,25 +620,26 @@ function FindCareContent() {
                       <span className="text-ink-tertiary block text-[10.5px]">Specialist Doctor</span>
                       <span className="font-bold text-emerald-700 flex items-center gap-1 mt-0.5">
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        {facility.doctors[0]?.name ? facility.doctors[0].name.split(",")[0] : "Available"}
+                        {facility.doctors && facility.doctors.length > 0 ? facility.doctors[0].name.split(",")[0] : (facility.specialties && facility.specialties.length > 0 ? facility.specialties[0] : "Specialist on Duty")}
                       </span>
                     </div>
                     <div>
                       <span className="text-ink-tertiary block text-[10.5px]">12-Lead ECG</span>
                       <span className="font-bold text-emerald-700 flex items-center gap-1 mt-0.5">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Operational
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        {(facility.services?.some(s => s.toLowerCase().includes("ecg")) || facility.diagnostics?.some(d => d.name.toLowerCase().includes("ecg"))) ? "Operational" : "At Central Hub"}
                       </span>
                     </div>
                     <div>
-                      <span className="text-ink-tertiary block text-[10.5px]">Diagnostic Wait</span>
-                      <span className="font-bold text-ink-primary mt-0.5 block">
-                        ~{facility.diagnostics[0]?.waitTime || 15} mins wait
+                      <span className="text-ink-tertiary block text-[10.5px]">Emergency Status</span>
+                      <span className={`font-bold mt-0.5 block ${facility.emergencyAvailable || facility.emergencyCapability ? "text-emerald-700" : "text-ink-primary"}`}>
+                        {facility.emergencyAvailable || facility.emergencyCapability ? "24/7 Available" : "Daycare / Scheduled OPD"}
                       </span>
                     </div>
                     <div>
                       <span className="text-ink-tertiary block text-[10.5px]">OPD Queue</span>
                       <span className="font-bold text-ink-primary mt-0.5 block">
-                        {facility.queue?.estimatedWait || 15} mins wait
+                        {facility.queue?.nowServing ? `Token #${facility.queue.nowServing} Serving` : "Walk-in Counter OPD"}
                       </span>
                     </div>
                   </div>
@@ -643,15 +656,23 @@ function FindCareContent() {
                   )}
 
                   <div className="flex items-center justify-between gap-3 pt-3 border-t border-[rgba(124,45,45,0.08)] flex-wrap">
-                    <div className="text-[11.5px] text-ink-tertiary flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                      {facility.accreditation || (facility.ownershipSector === "GOVERNMENT" ? `${facility.state} Public Health · Free Care` : "Ayushman Bharat PM-JAY Empaneled")}
+                    <div className="text-[11.5px] text-ink-tertiary flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>{facility.accreditation || (facility.ownershipSector === "GOVERNMENT" ? "Government Public Healthcare · Free Care" : "Ayushman Bharat PM-JAY & Private Network")}</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-ink-tertiary bg-bg px-1.5 py-0.2 rounded border border-[rgba(124,45,45,0.1)]">
+                        {facility.source || "Official Health Directory"}
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setSelectedDetailFacility(facility)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedDetailFacility(facility);
+                        }}
                         className="px-3 py-2 rounded-[8px] bg-white hover:bg-blush border border-[rgba(124,45,45,0.15)] text-burgundy-700 text-[12px] font-bold transition-colors cursor-pointer"
                       >
                         View Details
@@ -661,6 +682,7 @@ function FindCareContent() {
                         href={getDirectionsUrl(facility.lat, facility.lng, facility.name)}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
                         className="px-3 py-2 rounded-[8px] bg-white hover:bg-blush border border-[rgba(124,45,45,0.15)] text-ink-secondary hover:text-burgundy-700 text-[12px] font-bold transition-colors flex items-center gap-1.5"
                       >
                         <Navigation className="w-3.5 h-3.5 text-burgundy-700" /> Directions
@@ -668,13 +690,15 @@ function FindCareContent() {
 
                       <Link
                         href="/patient/token"
+                        onClick={(e) => e.stopPropagation()}
                         className="px-3.5 py-2 rounded-[8px] bg-burgundy-700 hover:bg-burgundy-800 text-white text-[12px] font-bold transition-colors flex items-center gap-1.5 shadow-2xs"
                       >
-                        <Ticket className="w-3.5 h-3.5" /> Book Token (#{facility.queue?.nowServing || 41})
+                        <Ticket className="w-3.5 h-3.5" /> {facility.queue?.nowServing ? `Book Token (#${facility.queue.nowServing})` : "Book Token"}
                       </Link>
 
                       <Link
                         href="/patient/teleconsult"
+                        onClick={(e) => e.stopPropagation()}
                         className="px-3 py-2 rounded-[8px] bg-blush border border-[rgba(124,45,45,0.15)] text-burgundy-700 hover:bg-rose text-[12px] font-semibold transition-colors flex items-center gap-1.5"
                       >
                         <Video className="w-3.5 h-3.5" /> Teleconsult
@@ -849,7 +873,7 @@ function FindCareContent() {
               </div>
 
               {/* Doctors & Specialists */}
-              {selectedDetailFacility.doctors.length > 0 && (
+              {selectedDetailFacility.doctors && selectedDetailFacility.doctors.length > 0 ? (
                 <div>
                   <h4 className="text-[12.5px] font-bold text-ink-primary mb-1.5">Specialists on Duty:</h4>
                   <div className="space-y-1.5">
@@ -866,10 +890,21 @@ function FindCareContent() {
                     ))}
                   </div>
                 </div>
-              )}
+              ) : selectedDetailFacility.specialties && selectedDetailFacility.specialties.length > 0 ? (
+                <div>
+                  <h4 className="text-[12.5px] font-bold text-ink-primary mb-1.5">Specialty Clinical Coverage:</h4>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {selectedDetailFacility.specialties.map((s) => (
+                      <span key={s} className="text-[11.5px] bg-white border border-[rgba(124,45,45,0.1)] px-2.5 py-1 rounded-[6px] text-ink-primary font-medium">
+                        ● {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               {/* Diagnostics */}
-              {selectedDetailFacility.diagnostics.length > 0 && (
+              {selectedDetailFacility.diagnostics && selectedDetailFacility.diagnostics.length > 0 ? (
                 <div>
                   <h4 className="text-[12.5px] font-bold text-ink-primary mb-1.5">Available Diagnostics:</h4>
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -880,7 +915,18 @@ function FindCareContent() {
                     ))}
                   </div>
                 </div>
-              )}
+              ) : selectedDetailFacility.services && selectedDetailFacility.services.length > 0 ? (
+                <div>
+                  <h4 className="text-[12.5px] font-bold text-ink-primary mb-1.5">Available Clinical Services:</h4>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {selectedDetailFacility.services.map((s) => (
+                      <span key={s} className="text-[11.5px] bg-bg border border-[rgba(124,45,45,0.1)] px-2.5 py-1 rounded-[6px] text-ink-primary font-medium">
+                        ✓ {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               {/* Actions */}
               <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[rgba(124,45,45,0.08)]">

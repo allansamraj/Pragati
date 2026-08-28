@@ -479,10 +479,10 @@ function handlePatientQuery(
     }
 
     if (isCardio) {
-      filtered = filtered.filter((f) => f.specialists.some((s) => s.toLowerCase().includes("cardio")));
+      filtered = filtered.filter((f) => (f.specialties || []).some((s: string) => s.toLowerCase().includes("cardio")));
     }
     if (isEcg) {
-      filtered = filtered.filter((f) => f.diagnostics.some((d) => d.name.toLowerCase().includes("ecg")));
+      filtered = filtered.filter((f) => (f.services?.some(s => s.toLowerCase().includes("ecg")) || (f.diagnostics || []).some((d) => d.name.toLowerCase().includes("ecg"))));
     }
 
     if (filtered.length === 0) {
@@ -497,7 +497,7 @@ function handlePatientQuery(
       travelMinutes: f.travelMinutes || (idx === 0 ? 10 : 18),
       matchScore: idx === 0 ? 96 : 88,
       specialistAvailable: true,
-      specialistName: isCardio ? (f.doctors.find((d) => d.specialty.includes("Cardio"))?.name || "Cardiologist on Duty") : (f.doctors[0]?.name || "Doctor on Duty"),
+      specialistName: isCardio ? (f.doctors?.find((d) => d.specialty.includes("Cardio"))?.name || "Cardiologist on Duty") : (f.doctors?.[0]?.name || "Doctor on Duty"),
       diagnosticAvailable: true,
       diagnosticWaitMinutes: isEcg ? 5 : 15,
       queueWaitMinutes: f.queue?.estimatedWait || 12,
