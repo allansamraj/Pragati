@@ -5,14 +5,15 @@
 import { ChatMessage, UserRole, AssistantLanguage } from "./types";
 import { patientTools, doctorTools, providerTools, governmentTools } from "./assistantTools";
 import { symptomTriageEngine } from "./symptomTriageEngine";
+import { healthcareIntentRouter } from "./healthcareIntentRouter";
 import { DEMO_PATIENT } from "@/data/patient";
 import { DEMO_FACILITIES } from "@/data/facilities";
 
-export function generateAssistantResponse(
+export async function generateAssistantResponse(
   query: string,
   role: UserRole,
   language: AssistantLanguage = "en"
-): ChatMessage {
+): Promise<ChatMessage> {
   const q = query.trim().toLowerCase();
   const timestamp = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
   const msgId = `msg-${Date.now()}`;
@@ -36,12 +37,12 @@ export function generateAssistantResponse(
 // 1. PATIENT INTENT ROUTER & ENGINE
 // ─────────────────────────────────────────────────────────────────────────────
 
-function handlePatientQuery(
+async function handlePatientQuery(
   rawQuery: string,
   timestamp: string,
   msgId: string,
   language: AssistantLanguage
-): ChatMessage {
+): Promise<ChatMessage> {
   const q = rawQuery.trim().toLowerCase();
 
   // ── A. SIMPLE GREETINGS ONLY ("hi", "hello", "hey", "namaste", "vanakkam") ──
@@ -69,107 +70,26 @@ function handlePatientQuery(
       role: "patient",
       language,
       suggestedPrompts: [
+        "Skin allergy",
         "I have fever",
+        "I need ECG",
         "What is my token?",
-        "When is my next appointment?",
         "Find Care near me",
       ],
     };
   }
 
-  // ── B. SYMPTOM CONVERSATION ENGINE (Nausea, Fever, Headache, Migraine, Cough, etc.) ──
-  const triageResponse = symptomTriageEngine.processSymptomQuery(rawQuery, timestamp, msgId, language);
-  if (triageResponse) {
-    return triageResponse;
-  }
-
-  // ── C. "WHAT SHOULD I DO?" / "WHAT MEDICINE CAN I TAKE?" ──
-  if (
-    q.includes("what should i do") ||
-    q.includes("how to get rid") ||
-    q.includes("how to cure") ||
-    q.includes("what medicine should i take") ||
-    q.includes("medicine for fever") ||
-    q.includes("tablet for headache") ||
-    q.includes("medicine for nausea")
-  ) {
-    return {
-      id: msgId,
-      sender: "assistant",
-      text:
-        "Fever, nausea, or discomfort is usually a sign that your body is responding to an underlying cause. The safest approach is to monitor symptoms carefully and seek professional advice.\n\n" +
-        "Safe General Guidance:\n" +
-        "• Rest adequately and drink plenty of fluids (water, ORS, warm broths) to avoid dehydration.\n" +
-        "• For over-the-counter fever reducers such as Paracetamol, always check package labeling or consult a healthcare professional/pharmacist for appropriate dosage based on your age and health history.\n" +
-        "• Avoid taking multiple combination remedies simultaneously without medical advice.\n" +
-        "• Never administer aspirin to children or teenagers.\n\n" +
-        "Would you like to find verified public healthcare facilities near your current location?",
-      timestamp,
-      role: "patient",
-      language,
-      actionLink: {
-        label: "Find Healthcare Facilities Near You",
-        href: "/patient/find-care?specialty=general",
-      },
-      suggestedPrompts: [
-        "Find Healthcare Near Me",
-        "Check my active medications",
-        "Check my OPD token",
-      ],
-    };
-  }
-
-  // ── D. EMERGENCY INTENT (Acute chest pain, 108, heart attack, emergency) ──
+  // ── B. DIRECT PORTAL & EMERGENCY TOOLS (Token, Appointments, Medications, Records, 108 Emergency) ──
   if (
     q.includes("emergency") ||
     q.includes("108") ||
     q.includes("ambulance") ||
     q.includes("heart attack") ||
-    q.includes("chest pain severe") ||
+    q.includes("severe chest pain") ||
     q.includes("cannot breathe") ||
     q.includes("unconscious")
   ) {
-    const nearestEmergency = DEMO_FACILITIES.find((f) => f.emergencyCapability) || DEMO_FACILITIES[0];
-    return {
-      id: msgId,
-      sender: "assistant",
-      text:
-        language === "mr"
-          ? "तातडीची वैद्यकीय मदत आवश्यक आहे. कृपया विलंब न करता त्वरित १०८ रुग्णवाहिकेला कॉल करा."
-          : language === "ta"
-          ? "அவசர மருத்துவ உதவி தேவை. தாமதிக்காமல் உடனடியாக 108 ஆம்புலன்ஸை அழைக்கவும்."
-          : "🚨 EMERGENCY ALERT: For acute chest pain, severe trauma, or breathing difficulty, immediate hospital stabilization is critical. Please call 108 emergency ambulance now.",
-      timestamp,
-      role: "patient",
-      language,
-      widget: {
-        type: "facility_list",
-        data: [
-          {
-            id: nearestEmergency.id,
-            name: nearestEmergency.name,
-            type: nearestEmergency.type,
-            distanceKm: nearestEmergency.distanceKm || 2.4,
-            travelMinutes: nearestEmergency.travelMinutes || 10,
-            specialistAvailable: true,
-            specialistName: "24/7 Trauma ICU",
-            diagnosticAvailable: true,
-            diagnosticWaitMinutes: 5,
-            queueWaitMinutes: 5,
-            isBestMatch: true,
-          },
-        ],
-      },
-      actionLink: {
-        label: "Call 108 Emergency Now",
-        href: "tel:108",
-      },
-      suggestedPrompts: [
-        "Call 108 Emergency",
-        "Where is the closest hospital?",
-        "Check my active token",
-      ],
-    };
+    return await healthcareIntentRouter.processUserMessage(rawQuery, timestamp, msgId, language);
   }
 
   // ── E. TOKEN & QUEUE INTENT ──
@@ -447,128 +367,9 @@ function handlePatientQuery(
     };
   }
 
-  // ── K. NEARBY / BEST MATCH FACILITY & SERVICE DISCOVERY (Government + Private) ──
-  if (
-    q.includes("near me") ||
-    q.includes("nearby") ||
-    q.includes("ecg") ||
-    q.includes("cardiology") ||
-    q.includes("cardiologist") ||
-    q.includes("hospital") ||
-    q.includes("closest") ||
-    q.includes("nearest") ||
-    q.includes("find care") ||
-    q.includes("clinic") ||
-    q.includes("phc") ||
-    q.includes("chc") ||
-    q.includes("pharmacy") ||
-    q.includes("private") ||
-    q.includes("government") ||
-    q.includes("govt")
-  ) {
-    const isPrivateOnly = (q.includes("private") || q.includes("pvt")) && !q.includes("government") && !q.includes("govt");
-    const isGovtOnly = (q.includes("government") || q.includes("govt") || q.includes("public")) && !q.includes("private");
-    const isEcg = q.includes("ecg");
-    const isCardio = q.includes("cardio") || q.includes("heart");
-
-    let filtered = DEMO_FACILITIES;
-    if (isPrivateOnly) {
-      filtered = DEMO_FACILITIES.filter((f) => f.ownershipSector === "PRIVATE" || f.ownership === "private" || f.ownership === "private_empaneled");
-    } else if (isGovtOnly) {
-      filtered = DEMO_FACILITIES.filter((f) => f.ownershipSector === "GOVERNMENT" || f.ownership === "government");
-    }
-
-    if (isCardio) {
-      filtered = filtered.filter((f) => (f.specialties || []).some((s: string) => s.toLowerCase().includes("cardio")));
-    }
-    if (isEcg) {
-      filtered = filtered.filter((f) => (f.services?.some(s => s.toLowerCase().includes("ecg")) || (f.diagnostics || []).some((d) => d.name.toLowerCase().includes("ecg"))));
-    }
-
-    if (filtered.length === 0) {
-      filtered = DEMO_FACILITIES.slice(0, 2);
-    }
-
-    const facilities = filtered.slice(0, 2).map((f, idx) => ({
-      id: f.id,
-      name: f.name,
-      type: f.type,
-      distanceKm: f.distanceKm || (idx === 0 ? 2.4 : 3.8),
-      travelMinutes: f.travelMinutes || (idx === 0 ? 10 : 18),
-      matchScore: idx === 0 ? 96 : 88,
-      specialistAvailable: true,
-      specialistName: isCardio ? (f.doctors?.find((d) => d.specialty.includes("Cardio"))?.name || "Cardiologist on Duty") : (f.doctors?.[0]?.name || "Doctor on Duty"),
-      diagnosticAvailable: true,
-      diagnosticWaitMinutes: isEcg ? 5 : 15,
-      queueWaitMinutes: f.queue?.estimatedWait || 12,
-      isBestMatch: idx === 0,
-    }));
-
-    let intro = "Based on your current location, here are verified healthcare facilities (Government & Private):";
-    if (isPrivateOnly && isCardio) {
-      intro = "Here are verified private cardiology clinics and multi-specialty hospitals near your current location:";
-    } else if (isPrivateOnly && isEcg) {
-      intro = "Here are verified private hospitals and diagnostic centers with active 12-lead ECG near you:";
-    } else if (isPrivateOnly) {
-      intro = "Here are verified private healthcare facilities and clinics near your current location:";
-    } else if (isGovtOnly && isEcg) {
-      intro = "Here are verified government public hospitals with active 12-lead ECG machines (100% free):";
-    } else if (isGovtOnly) {
-      intro = "Here are verified government public healthcare facilities near your current location (Free Care):";
-    } else if (isEcg) {
-      intro = "Here are verified healthcare facilities (Government & Private) with active 12-lead ECG machines near your current location:";
-    } else if (isCardio) {
-      intro = "Here are verified healthcare facilities with active Cardiology specialist consultations near you:";
-    }
-
-    return {
-      id: msgId,
-      sender: "assistant",
-      text:
-        `${intro}\n\n` +
-        `1. ${facilities[0].name} — ${facilities[0].distanceKm} km away\n` +
-        `   • Type: ${facilities[0].type}\n` +
-        `   • Status: Open Now (Queue: ~${facilities[0].queueWaitMinutes} min wait)\n` +
-        `   • Diagnostics: 12-Lead ECG Operational\n` +
-        `   • Doctor: ${facilities[0].specialistName}\n\n` +
-        `2. ${facilities[1].name} — ${facilities[1].distanceKm} km away (~${facilities[1].travelMinutes} min travel)\n` +
-        `   • Type: ${facilities[1].type}\n\n` +
-        `Would you like to book an OPD token, start a teleconsultation, or get driving directions?`,
-      timestamp,
-      role: "patient",
-      language,
-      widget: {
-        type: "facility_list",
-        data: facilities,
-      },
-      actionLink: {
-        label: "Open Care Finder & Map",
-        href: "/patient/find-care",
-      },
-      suggestedPrompts: [
-        "Book a token",
-        "Find private hospitals near me",
-        "Find government hospitals near me",
-      ],
-    };
-  }
-
-  // ── L. CLEAN CONVERSATIONAL FALLBACK ──
-  return {
-    id: msgId,
-    sender: "assistant",
-    text:
-      "I'm here to help. If you're feeling unwell, please tell me your symptoms and I will help guide you to safe care and nearby public facilities.",
-    timestamp,
-    role: "patient",
-    language,
-    suggestedPrompts: [
-      "I got food poisoning",
-      "I got fever",
-      "What is my token?",
-      "When is my next appointment?",
-    ],
-  };
+  // ── K. HEALTHCARE INTENT CLASSIFICATION & CLINICAL NAVIGATION ROUTER ──
+  // Intelligently maps symptoms, specialties, diagnostics, facility searches, and follow-ups.
+  return await healthcareIntentRouter.processUserMessage(rawQuery, timestamp, msgId, language);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

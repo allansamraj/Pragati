@@ -55,7 +55,7 @@ export const aiService = {
 
     // In production this can fetch from /api/ai/chat with OpenRouter gateway
     try {
-      return generateAssistantResponse(query, role, language);
+      return await generateAssistantResponse(query, role, language);
     } catch (err) {
       return {
         id: `err-${Date.now()}`,
