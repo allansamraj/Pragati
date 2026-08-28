@@ -9,7 +9,7 @@ import {
   CheckCircle2, AlertCircle, Zap, ChevronRight,
   Clock, XCircle, Phone, Video, Ticket, AlertTriangle, ShieldCheck,
   RefreshCw, Navigation, Map as MapIcon, List as ListIcon, X, WifiOff,
-  Filter, Building2
+  Filter, Building2, ArrowUpDown
 } from "lucide-react";
 import { Facility } from "@/data/facilities";
 import { useLanguage } from "@/lib/i18n";
@@ -51,13 +51,14 @@ function FindCareContent() {
   const [manualLoading, setManualLoading] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
 
-  // Search & Triage States
+  // Search, Sort & Triage States
   const [query, setQuery] = useState("");
   const [specialtyParam, setSpecialtyParam] = useState("");
   const [triageLevel, setTriageLevel] = useState<TriageLevel>("urgent");
   const [selectedFacilityId, setSelectedFacilityId] = useState<string>("fac-001");
   const [customRadiusKm, setCustomRadiusKm] = useState<number | undefined>(undefined);
   const [ownershipFilter, setOwnershipFilter] = useState<"all" | "government" | "private">("all");
+  const [sortMode, setSortMode] = useState<"nearest" | "best_match">("nearest");
   const [selectedDetailFacility, setSelectedDetailFacility] = useState<Facility | null>(null);
 
   // Mobile View Toggle
@@ -67,12 +68,19 @@ function FindCareContent() {
   const [searchResult, setSearchResult] = useState<NearbySearchResult | null>(null);
   const [searchingFacilities, setSearchingFacilities] = useState(false);
 
-  // ── REFRESH FACILITIES WHEN LOCATION, QUERY, OR RADIUS CHANGES ──
+  // ── REFRESH FACILITIES WHEN LOCATION, QUERY, RADIUS OR SORT CHANGES ──
   const executeSearch = useCallback(async (searchQuery?: string) => {
     const activeQuery = searchQuery !== undefined ? searchQuery : query;
     setSearchingFacilities(true);
     try {
-      const res = await searchNearby(activeQuery, specialtyParam, triageLevel === "emergency");
+      const res = await searchNearby(
+        activeQuery,
+        specialtyParam,
+        triageLevel === "emergency",
+        ownershipFilter === "all" ? "ALL" : ownershipFilter === "government" ? "GOVERNMENT" : "PRIVATE",
+        sortMode,
+        customRadiusKm
+      );
       setSearchResult(res);
       if (res.facilities.length > 0) {
         setSelectedFacilityId(res.facilities[0].id);
@@ -82,7 +90,7 @@ function FindCareContent() {
     } finally {
       setSearchingFacilities(false);
     }
-  }, [searchNearby, query, specialtyParam, triageLevel]);
+  }, [searchNearby, query, specialtyParam, triageLevel, ownershipFilter, sortMode, customRadiusKm]);
 
   useEffect(() => {
     executeSearch();
@@ -409,7 +417,7 @@ function FindCareContent() {
             </div>
           </div>
 
-            {/* Radius & Ownership Filters */}
+            {/* Radius, Ownership & Sort Filters */}
             <div className="flex flex-col gap-2.5 w-full pt-1">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[11px] font-bold text-ink-tertiary mr-1 flex items-center gap-1">
@@ -435,6 +443,35 @@ function FindCareContent() {
                     {chip.label}
                   </button>
                 ))}
+              </div>
+
+              {/* Sort Order Selector (Nearest vs Best Match) */}
+              <div className="flex items-center gap-1.5 flex-wrap border-t border-[rgba(124,45,45,0.06)] pt-2">
+                <span className="text-[11px] font-bold text-ink-tertiary mr-1 flex items-center gap-1">
+                  <ArrowUpDown className="w-3 h-3" /> Sort Mode:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSortMode("nearest")}
+                  className={`px-3 py-1 rounded-[6px] text-[11px] font-bold border transition-colors cursor-pointer ${
+                    sortMode === "nearest"
+                      ? "bg-burgundy-700 text-white border-burgundy-700 shadow-2xs"
+                      : "bg-bg text-ink-secondary border-[rgba(124,45,45,0.1)] hover:bg-blush"
+                  }`}
+                >
+                  📍 Nearest First (Proximity)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortMode("best_match")}
+                  className={`px-3 py-1 rounded-[6px] text-[11px] font-bold border transition-colors cursor-pointer ${
+                    sortMode === "best_match"
+                      ? "bg-burgundy-700 text-white border-burgundy-700 shadow-2xs"
+                      : "bg-bg text-ink-secondary border-[rgba(124,45,45,0.1)] hover:bg-blush"
+                  }`}
+                >
+                  ⭐ Best Clinical Match
+                </button>
               </div>
 
               {/* Facility Sector Filter Chips (ALL, GOVERNMENT, PRIVATE) */}
@@ -467,7 +504,7 @@ function FindCareContent() {
               type="submit"
               className="flex items-center gap-2 bg-burgundy-700 hover:bg-burgundy-800 text-white text-[13px] font-bold px-5 py-2.5 rounded-[9px] transition-colors shadow-2xs ml-auto cursor-pointer mt-1"
             >
-              {isBestMatchMode ? "Find Best Matches" : "Find Nearby Facilities"} <ArrowRight className="w-4 h-4" />
+              {sortMode === "best_match" ? "Find Best Matches" : "Find Nearby Facilities"} <ArrowRight className="w-4 h-4" />
             </button>
         </form>
       </div>
@@ -497,7 +534,7 @@ function FindCareContent() {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <h2 className="text-[17px] font-extrabold text-ink-primary">
-              {isBestMatchMode ? "Best Match Healthcare Facilities" : "Nearby Healthcare Facilities"}
+              {sortMode === "best_match" ? "Best Match Healthcare Facilities" : "Nearby Healthcare Facilities"}
             </h2>
             <p className="text-[12px] text-ink-secondary">
               Showing healthcare facilities within {effectiveRadiusKm} km of your location
@@ -512,7 +549,7 @@ function FindCareContent() {
         {searchResult?.isExpandedRadius && customRadiusKm === undefined && (
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-[10px] flex items-center gap-2 text-amber-900 text-[12px] font-semibold">
             <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-            <span>Showing verified facilities within {effectiveRadiusKm} km because fewer facilities were found within 10 km.</span>
+            <span>Showing verified facilities within {effectiveRadiusKm} km because fewer facilities were found within 5 km.</span>
           </div>
         )}
       </div>

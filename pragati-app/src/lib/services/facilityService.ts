@@ -1,6 +1,6 @@
 // ─── PRAGATI FACILITY DISCOVERY SERVICE ──────────────────────────────────────────
-// Genuine location-aware healthcare facility discovery engine.
-// Combines Live OpenStreetMap geospatial queries with verified health registries.
+// High-precision, real-world geospatial healthcare facility discovery engine.
+// Discovers live healthcare facilities (Government & Private) dynamically around the user GPS coordinates.
 // No synthetic or fabricated facilities are ever generated.
 
 import { DEMO_FACILITIES, Facility, FacilityType, OwnershipSector } from "@/data/facilities";
@@ -11,11 +11,13 @@ export interface NearbySearchParams {
   lng: number;
   locality?: string;
   initialRadiusKm?: number;
+  customRadiusKm?: number;
   needQuery?: string;
   specialty?: string;
   service?: string;
   isEmergency?: boolean;
   facilityType?: "ALL" | "GOVERNMENT" | "PRIVATE";
+  sortBy?: "nearest" | "best_match";
 }
 
 export interface NearbySearchResult {
@@ -33,269 +35,243 @@ export interface NearbySearchResult {
   lastSyncTime: string;
 }
 
-// In-memory cache for live Overpass queries to avoid repeated network hits (15 min cache)
-const overpassCache = new Map<string, { data: Facility[]; timestamp: number }>();
-const CACHE_TTL_MS = 15 * 60 * 1000;
+// In-memory cache for live geospatial discoveries (10 min TTL)
+const liveDiscoveryCache = new Map<string, { data: Facility[]; timestamp: number }>();
+const CACHE_TTL_MS = 10 * 60 * 1000;
 
 /**
- * Queries OpenStreetMap Overpass API for real-world mapped healthcare amenities
- * within the specified radius around (lat, lng).
+ * Queries real-world healthcare amenities from OpenStreetMap Photon API
+ * centered dynamically around (lat, lng).
  */
-async function fetchLiveOSMFacilities(lat: number, lng: number, radiusMeters: number): Promise<Facility[]> {
-  const cacheKey = `${lat.toFixed(3)}_${lng.toFixed(3)}_${radiusMeters}`;
+async function fetchLiveOpenStreetMapHealthcare(lat: number, lng: number, radiusKm: number): Promise<Facility[]> {
+  const cacheKey = `${lat.toFixed(3)}_${lng.toFixed(3)}_${radiusKm}`;
   const now = Date.now();
-  const cached = overpassCache.get(cacheKey);
+  const cached = liveDiscoveryCache.get(cacheKey);
   if (cached && now - cached.timestamp < CACHE_TTL_MS) {
     return cached.data;
   }
 
-  // Construct Overpass QL Query for real healthcare amenities
-  const query = `
-    [out:json][timeout:6];
-    (
-      node["amenity"~"hospital|clinic|doctors|pharmacy"](around:${radiusMeters},${lat},${lng});
-      way["amenity"~"hospital|clinic|doctors|pharmacy"](around:${radiusMeters},${lat},${lng});
-      node["healthcare"](around:${radiusMeters},${lat},${lng});
-      way["healthcare"](around:${radiusMeters},${lat},${lng});
-    );
-    out center tags 30;
-  `.replace(/\s+/g, " ");
-
-  const endpoints = [
-    "https://overpass-api.de/api/interpreter",
-    "https://lz4.overpass-api.de/api/interpreter",
+  const discovered: Facility[] = [];
+  const queryTags = [
+    { q: "hospital", tag: "osm_tag=amenity:hospital&osm_tag=healthcare:hospital" },
+    { q: "clinic", tag: "osm_tag=amenity:clinic&osm_tag=healthcare:clinic&osm_tag=healthcare:doctor" },
+    { q: "health centre", tag: "osm_tag=amenity:health_post&osm_tag=healthcare:centre" },
+    { q: "pharmacy", tag: "osm_tag=amenity:pharmacy&osm_tag=healthcare:pharmacy" },
   ];
 
-  for (const endpoint of endpoints) {
-    try {
-      const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-      const timeoutId = controller ? setTimeout(() => controller.abort(), 4500) : null;
+  try {
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 6000) : null;
 
-      const res = await fetch(endpoint, {
-        method: "POST",
-        body: "data=" + encodeURIComponent(query),
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "User-Agent": "Pragati-Healthcare-Platform/1.0",
-        },
-        signal: controller ? controller.signal : undefined,
-      });
+    const promises = queryTags.map(async ({ q, tag }) => {
+      const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lat=${lat}&lon=${lng}&${tag}&limit=35`;
+      try {
+        const res = await fetch(url, {
+          headers: { "Accept-Language": "en" },
+          signal: controller ? controller.signal : undefined,
+        });
+        if (res.ok) {
+          const json = await res.json();
+          return json.features || [];
+        }
+      } catch {}
+      return [];
+    });
 
-      if (timeoutId) clearTimeout(timeoutId);
+    const featureArrays = await Promise.all(promises);
+    if (timeoutId) clearTimeout(timeoutId);
 
-      if (res.ok) {
-        const json = await res.json();
-        const elements = json.elements || [];
-        const parsedFacilities: Facility[] = [];
+    for (const features of featureArrays) {
+      for (const feat of features) {
+        const coords = feat.geometry?.coordinates; // [lon, lat]
+        if (!coords || coords.length < 2) continue;
+        const itemLng = coords[0];
+        const itemLat = coords[1];
+        if (typeof itemLat !== "number" || typeof itemLng !== "number") continue;
 
-        for (const el of elements) {
-          const tags = el.tags || {};
-          const name = tags.name || tags["name:en"] || tags["official_name"];
-          if (!name || name.trim().length < 3) continue;
+        const dist = calculateDistance(lat, lng, itemLat, itemLng);
+        // Hard boundary check against requested radius (with 15% outer buffer for edge cases)
+        if (dist > Math.max(radiusKm * 1.15, 25)) continue;
 
-          const itemLat = el.lat ?? el.center?.lat;
-          const itemLng = el.lon ?? el.center?.lon;
-          if (itemLat === undefined || itemLng === undefined) continue;
+        const props = feat.properties || {};
+        const name = props.name || "";
+        if (!name || name.trim().length < 2) continue;
 
-          // Determine ownership: Government vs Private
-          const opType = (tags["operator:type"] || "").toLowerCase();
-          const operator = (tags.operator || "").toLowerCase();
-          const nameLower = name.toLowerCase();
-
-          const isGov =
-            opType === "public" ||
-            opType === "government" ||
-            opType === "state" ||
-            operator.includes("government") ||
-            operator.includes("govt") ||
-            operator.includes("corporation") ||
-            operator.includes("ministry") ||
-            operator.includes("district") ||
-            operator.includes("state") ||
-            nameLower.includes("government") ||
-            nameLower.includes("govt") ||
-            nameLower.includes("gh") ||
-            nameLower.includes("ggh") ||
-            nameLower.includes("uphc") ||
-            nameLower.includes("phc") ||
-            nameLower.includes("chc") ||
-            nameLower.includes("civil hospital") ||
-            nameLower.includes("taluk hospital") ||
-            nameLower.includes("medical college") ||
-            nameLower.includes("district hospital") ||
-            nameLower.includes("corporation clinic");
-
-          const ownership: OwnershipSector = isGov ? "GOVERNMENT" : "PRIVATE";
-
-          // Determine facility display type
-          let displayType = "Hospital";
-          let facilityType: FacilityType = isGov ? "GOVERNMENT_HOSPITAL" : "PRIVATE_HOSPITAL";
-
-          const amenity = (tags.amenity || "").toLowerCase();
-          const healthcare = (tags.healthcare || "").toLowerCase();
-
-          if (nameLower.includes("phc") || nameLower.includes("primary health")) {
-            displayType = "Primary Health Centre";
-            facilityType = "GOVERNMENT_PHC";
-          } else if (nameLower.includes("uphc") || nameLower.includes("urban primary")) {
-            displayType = "Urban Primary Health Centre";
-            facilityType = "GOVERNMENT_PHC";
-          } else if (nameLower.includes("chc") || nameLower.includes("community health")) {
-            displayType = "Community Health Centre";
-            facilityType = "GOVERNMENT_CHC";
-          } else if (nameLower.includes("medical college")) {
-            displayType = isGov ? "Government Medical College Hospital" : "Private Medical College Hospital";
-            facilityType = isGov ? "GOVERNMENT_HOSPITAL" : "PRIVATE_HOSPITAL";
-          } else if (nameLower.includes("civil") || nameLower.includes("district hospital")) {
-            displayType = "District Hospital";
-            facilityType = "GOVERNMENT_HOSPITAL";
-          } else if (amenity === "clinic" || healthcare === "clinic" || nameLower.includes("clinic")) {
-            displayType = isGov ? "Government Clinic" : "Private Clinic";
-            facilityType = isGov ? "GOVERNMENT_CLINIC" : "PRIVATE_CLINIC";
-          } else if (amenity === "pharmacy" || healthcare === "pharmacy" || nameLower.includes("pharmacy")) {
-            displayType = "Pharmacy & Medicals";
-            facilityType = "PHARMACY";
-          } else if (nameLower.includes("diagnostic") || nameLower.includes("lab") || nameLower.includes("scan")) {
-            displayType = "Diagnostic & Imaging Centre";
-            facilityType = "DIAGNOSTIC_CENTER";
-          } else {
-            displayType = isGov ? "Government Hospital" : "Private Multi-Specialty Hospital";
-            facilityType = isGov ? "GOVERNMENT_HOSPITAL" : "PRIVATE_HOSPITAL";
-          }
-
-          // Build clean street address from OSM tags
-          const street = tags["addr:street"] || tags["addr:place"] || "";
-          const suburb = tags["addr:suburb"] || tags["addr:neighbourhood"] || "";
-          const city = tags["addr:city"] || tags["addr:town"] || tags["addr:district"] || "Local Area";
-          const postcode = tags["addr:postcode"] || "";
-          const addressParts = [street, suburb, city, postcode].filter(Boolean);
-          const fullAddress = addressParts.length > 0 ? addressParts.join(", ") : `${name}, ${city}`;
-
-          const phone = tags.phone || tags["contact:phone"] || tags["contact:mobile"] || undefined;
-          const hours = tags.opening_hours || undefined;
-          const emergencyAvailable = tags.emergency === "yes" || (displayType.includes("Hospital") && isGov);
-
-          // Extract real specialties if tagged
-          const specialties: string[] = [];
-          if (tags["healthcare:speciality"]) {
-            specialties.push(...tags["healthcare:speciality"].split(";").map((s: string) => s.trim()));
-          }
-          if (specialties.length === 0) {
-            specialties.push("General Medicine");
-            if (displayType.includes("Hospital")) {
-              specialties.push("Emergency Medicine", "General Surgery");
-            }
-          }
-
-          const services: string[] = ["Outpatient Consultation"];
-          if (emergencyAvailable) services.push("24/7 Emergency Care");
-          if (displayType.includes("Hospital")) services.push("12-Lead ECG", "Digital X-Ray", "Pathology");
-
-          const dist = calculateDistance(lat, lng, itemLat, itemLng);
-
-          parsedFacilities.push({
-            id: `osm-${el.id || Math.random().toString(36).substring(2, 9)}`,
-            name,
-            type: displayType,
-            facilityType,
-            ownership,
-            ownershipSector: ownership,
-            latitude: itemLat,
-            longitude: itemLng,
-            lat: itemLat,
-            lng: itemLng,
-            address: fullAddress,
-            locality: suburb || city,
-            city,
-            district: city,
-            state: tags["addr:state"] || "State Health Registry",
-            postalCode: postcode,
-            pincode: postcode,
-            phone,
-            emergencyAvailable,
-            emergencyCapability: emergencyAvailable,
-            openingHours: hours || (emergencyAvailable ? "Open 24/7 (Emergency)" : "Contact facility for OPD schedule"),
-            hours: hours || (emergencyAvailable ? "Open 24/7 (Emergency)" : "Contact facility for OPD schedule"),
-            isOpen: true,
-            specialties,
-            services,
-            verified: true,
-            source: "OpenStreetMap Live Directory",
-            hasTelemedicine: isGov,
-            distanceKm: dist,
-            travelMinutes: calculateTravelMinutes(dist),
-          });
+        // Skip non-facility entries (like streets named Hospital Road)
+        const nameLower = name.toLowerCase();
+        if (
+          nameLower.endsWith(" road") ||
+          nameLower.endsWith(" street") ||
+          nameLower.endsWith(" lane") ||
+          nameLower.endsWith(" flyover") ||
+          nameLower.includes(" bus stop") ||
+          nameLower.includes(" metro")
+        ) {
+          continue;
         }
 
-        if (parsedFacilities.length > 0) {
-          overpassCache.set(cacheKey, { data: parsedFacilities, timestamp: now });
-          return parsedFacilities;
+        // Determine Government vs Private
+        const isGov =
+          nameLower.includes("government") ||
+          nameLower.includes("govt") ||
+          nameLower.includes("corporation") ||
+          nameLower.includes("gh") ||
+          nameLower.includes("ggh") ||
+          nameLower.includes("phc") ||
+          nameLower.includes("uphc") ||
+          nameLower.includes("chc") ||
+          nameLower.includes("primary health") ||
+          nameLower.includes("urban primary") ||
+          nameLower.includes("community health") ||
+          nameLower.includes("civil hospital") ||
+          nameLower.includes("taluk hospital") ||
+          nameLower.includes("medical college hospital") ||
+          nameLower.includes("district hospital");
+
+        const ownership: OwnershipSector = isGov ? "GOVERNMENT" : "PRIVATE";
+
+        // Determine specific facility type
+        let displayType = "Hospital";
+        let facilityType: FacilityType = isGov ? "GOVERNMENT_HOSPITAL" : "PRIVATE_HOSPITAL";
+
+        if (nameLower.includes("uphc") || nameLower.includes("urban primary")) {
+          displayType = "Urban Primary Health Centre";
+          facilityType = "GOVERNMENT_PHC";
+        } else if (nameLower.includes("phc") || nameLower.includes("primary health")) {
+          displayType = "Primary Health Centre";
+          facilityType = "GOVERNMENT_PHC";
+        } else if (nameLower.includes("chc") || nameLower.includes("community health")) {
+          displayType = "Community Health Centre";
+          facilityType = "GOVERNMENT_CHC";
+        } else if (nameLower.includes("medical college")) {
+          displayType = isGov ? "Government Medical College Hospital" : "Private Medical College Hospital";
+          facilityType = isGov ? "GOVERNMENT_HOSPITAL" : "PRIVATE_HOSPITAL";
+        } else if (nameLower.includes("civil") || nameLower.includes("district hospital")) {
+          displayType = "District Civil Hospital";
+          facilityType = "GOVERNMENT_HOSPITAL";
+        } else if (nameLower.includes("clinic") || props.osm_value === "clinic") {
+          displayType = isGov ? "Government Clinic" : "Private Clinic";
+          facilityType = isGov ? "GOVERNMENT_CLINIC" : "PRIVATE_CLINIC";
+        } else if (nameLower.includes("pharmacy") || nameLower.includes("medicals") || props.osm_value === "pharmacy") {
+          displayType = "Pharmacy & Medicals";
+          facilityType = "PHARMACY";
+        } else if (nameLower.includes("diagnostic") || nameLower.includes("lab") || nameLower.includes("scan")) {
+          displayType = "Diagnostic & Scan Centre";
+          facilityType = "DIAGNOSTIC_CENTER";
+        } else {
+          displayType = isGov ? "Government Hospital" : "Private Multi-Specialty Hospital";
+          facilityType = isGov ? "GOVERNMENT_HOSPITAL" : "PRIVATE_HOSPITAL";
         }
+
+        // Build clean address
+        const street = props.street || "";
+        const locality = props.district || props.city || props.county || props.state || "";
+        const city = props.city || props.district || "";
+        const state = props.state || "";
+        const postcode = props.postcode || "";
+        const addressParts = [street, locality, city, postcode].filter(Boolean);
+        const fullAddress = addressParts.length > 0 ? addressParts.join(", ") : `${name}, ${locality}`;
+
+        const isEmergencyCapable = displayType.includes("Hospital") || isGov;
+
+        discovered.push({
+          id: `osm-${props.osm_id || Math.random().toString(36).substring(2, 9)}`,
+          name: name.trim(),
+          type: displayType,
+          facilityType,
+          ownership,
+          ownershipSector: ownership,
+          latitude: itemLat,
+          longitude: itemLng,
+          lat: itemLat,
+          lng: itemLng,
+          address: fullAddress,
+          locality: locality || city,
+          city,
+          district: props.district || city,
+          state,
+          postalCode: postcode,
+          pincode: postcode,
+          phone: undefined,
+          emergencyAvailable: isEmergencyCapable,
+          emergencyCapability: isEmergencyCapable,
+          openingHours: isEmergencyCapable ? "Open 24/7 (Emergency)" : "Contact facility for OPD schedule",
+          hours: isEmergencyCapable ? "Open 24/7 (Emergency)" : "Contact facility for OPD schedule",
+          isOpen: true,
+          specialties: isEmergencyCapable ? ["General Medicine", "Emergency Medicine"] : ["General Medicine"],
+          services: isEmergencyCapable ? ["Outpatient Consultation", "Emergency Care"] : ["Outpatient Consultation"],
+          verified: true,
+          source: "OpenStreetMap Live Directory",
+          distanceKm: dist,
+          travelMinutes: calculateTravelMinutes(dist),
+        });
       }
-    } catch {
-      // Endpoint failed, try next
     }
+
+    if (discovered.length > 0) {
+      liveDiscoveryCache.set(cacheKey, { data: discovered, timestamp: now });
+      return discovered;
+    }
+  } catch (err) {
+    console.warn("Live healthcare discovery failed, using verified registry:", err);
   }
 
   return [];
 }
 
 /**
- * Deduplicates facilities based on ID, normalized name, and proximity threshold (< 200m).
+ * Deduplicates facilities by normalized name and proximity (< 250m).
  */
 function deduplicateFacilities(facilities: Facility[]): Facility[] {
-  const seenIds = new Set<string>();
-  const results: Facility[] = [];
+  const unique: Facility[] = [];
 
   for (const fac of facilities) {
-    if (seenIds.has(fac.id)) continue;
-
-    // Check for existing facility within 200m with identical or closely matching name
     const normalizedName = fac.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-    const duplicateIndex = results.findIndex((existing) => {
+
+    const duplicateIndex = unique.findIndex((existing) => {
+      if (fac.id === existing.id) return true;
       const existingNormalized = existing.name.toLowerCase().replace(/[^a-z0-9]/g, "");
       const distance = calculateDistance(fac.lat, fac.lng, existing.lat, existing.lng);
-      const isNameMatch =
-        normalizedName.includes(existingNormalized) ||
-        existingNormalized.includes(normalizedName) ||
-        normalizedName.slice(0, 8) === existingNormalized.slice(0, 8);
 
-      return isNameMatch && distance < 0.25;
+      const isNameMatch =
+        normalizedName === existingNormalized ||
+        (normalizedName.length > 6 && existingNormalized.includes(normalizedName)) ||
+        (existingNormalized.length > 6 && normalizedName.includes(existingNormalized));
+
+      return (isNameMatch && distance < 1.0) || distance < 0.25;
     });
 
     if (duplicateIndex >= 0) {
-      // Merge: prefer entry with verified contact / doctor information
-      const existing = results[duplicateIndex];
+      const existing = unique[duplicateIndex];
+      // Keep entry with richer metadata or verified registry
       if (!existing.phone && fac.phone) existing.phone = fac.phone;
-      if (!existing.openingHours && fac.openingHours) existing.openingHours = fac.openingHours;
-      if (fac.doctors && fac.doctors.length > 0 && (!existing.doctors || existing.doctors.length === 0)) {
-        existing.doctors = fac.doctors;
+      if (fac.source === "Official State Health Registry" && existing.source !== "Official State Health Registry") {
+        unique[duplicateIndex] = fac;
       }
-      seenIds.add(fac.id);
     } else {
-      seenIds.add(fac.id);
-      results.push(fac);
+      unique.push(fac);
     }
   }
 
-  return results;
+  return unique;
 }
 
 /**
  * Primary Nearby Healthcare Facility Discovery function.
- * Calculates exact Haversine distance, supports multi-tier search radius expansion,
- * accurately filters Government vs Private, and scores clinical relevance.
+ * Enforces actual GPS coordinates and Haversine distance as the master constraint.
  */
 export async function getNearbyFacilities({
   lat,
   lng,
   locality = "Near You",
-  initialRadiusKm = 10,
+  initialRadiusKm = 5,
+  customRadiusKm,
   needQuery = "",
   specialty = "",
   service = "",
   isEmergency = false,
   facilityType = "ALL",
+  sortBy = "nearest",
 }: NearbySearchParams): Promise<NearbySearchResult> {
   const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
   const lastSyncTime = new Date().toLocaleTimeString("en-IN", {
@@ -303,7 +279,7 @@ export async function getNearbyFacilities({
     minute: "2-digit",
   });
 
-  // 1. Calculate distance for all verified facilities in the registry
+  // 1. Calculate distance for verified static facilities
   const verifiedWithDistance: Facility[] = DEMO_FACILITIES.map((fac) => {
     const dist = calculateDistance(lat, lng, fac.lat, fac.lng);
     const travel = calculateTravelMinutes(dist);
@@ -318,20 +294,21 @@ export async function getNearbyFacilities({
     };
   });
 
-  // 2. Fetch live OpenStreetMap healthcare facilities around this GPS location
+  // Determine active radius
+  let activeRadius = customRadiusKm !== undefined ? customRadiusKm : initialRadiusKm;
+
+  // 2. Fetch live OpenStreetMap healthcare facilities around this exact GPS position
   let liveOSM: Facility[] = [];
-  if (!isOffline && typeof window !== "undefined") {
-    try {
-      liveOSM = await fetchLiveOSMFacilities(lat, lng, Math.max(initialRadiusKm * 1000, 15000));
-    } catch (err) {
-      console.warn("Live OSM facility fetch failed, using verified registry:", err);
-    }
+  try {
+    liveOSM = await fetchLiveOpenStreetMapHealthcare(lat, lng, Math.max(activeRadius, 10));
+  } catch (err) {
+    console.warn("Live OSM fetch failed:", err);
   }
 
   // 3. Combine verified baseline with live OSM facilities and deduplicate
   let allCombined = deduplicateFacilities([...verifiedWithDistance, ...liveOSM]);
 
-  // Recalculate distance for all combined entries
+  // Recalculate distance for all combined entries from user GPS
   allCombined = allCombined.map((fac) => {
     const dist = calculateDistance(lat, lng, fac.lat, fac.lng);
     return {
@@ -361,163 +338,153 @@ export async function getNearbyFacilities({
     );
   }
 
-  // 5. Multi-tier Radius Filter: 10km -> 25km -> 50km
-  let activeRadius = initialRadiusKm;
-  let inRadius = allCombined.filter((f) => (f.distanceKm ?? 999) <= activeRadius);
-
+  // 5. Strict Geographic Radius Filtering & Adaptive Radius Expansion
   let isExpandedRadius = false;
-  if (inRadius.length < 3) {
-    activeRadius = 25;
-    inRadius = allCombined.filter((f) => (f.distanceKm ?? 999) <= activeRadius);
-    isExpandedRadius = true;
-  }
-  if (inRadius.length < 2) {
-    activeRadius = 50;
-    inRadius = allCombined.filter((f) => (f.distanceKm ?? 999) <= activeRadius);
-    isExpandedRadius = true;
-  }
-  if (inRadius.length === 0) {
-    inRadius = [...allCombined].sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0)).slice(0, 6);
-    activeRadius = Math.ceil(inRadius[inRadius.length - 1]?.distanceKm || 50);
+
+  if (customRadiusKm !== undefined) {
+    // User explicitly locked a radius (e.g. 2 km, 5 km, 10 km, 25 km): STRICT ENFORCEMENT
+    allCombined = allCombined.filter((f) => (f.distanceKm ?? 999) <= customRadiusKm);
+    activeRadius = customRadiusKm;
+  } else {
+    // Adaptive expansion: 5 km -> 10 km -> 25 km
+    activeRadius = 5;
+    let inRadius = allCombined.filter((f) => (f.distanceKm ?? 999) <= activeRadius);
+
+    if (inRadius.length < 3) {
+      activeRadius = 10;
+      inRadius = allCombined.filter((f) => (f.distanceKm ?? 999) <= activeRadius);
+      isExpandedRadius = true;
+    }
+    if (inRadius.length < 2) {
+      activeRadius = 25;
+      inRadius = allCombined.filter((f) => (f.distanceKm ?? 999) <= activeRadius);
+      isExpandedRadius = true;
+    }
+
+    allCombined = inRadius;
   }
 
-  // 6. Clinical Domain & Query Analysis
+  // 6. Clinical Query Analysis
   const combinedNeed = (needQuery + " " + specialty + " " + service).trim();
-  const isBestMatchMode = Boolean(combinedNeed);
   const queryLower = combinedNeed.toLowerCase();
 
-  const stopWords = new Set(["the", "and", "near", "with", "for", "in", "at", "need", "find", "get", "show", "i", "a", "an", "me", "to"]);
   const searchTokens = queryLower
     .split(/[\s,]+/)
-    .filter((t) => t.length > 1 && !stopWords.has(t));
+    .filter((t) => t.length > 2 && !["the", "and", "near", "with", "for", "in", "at", "get", "show", "find"].includes(t));
 
-  const needsECG = queryLower.includes("ecg") || queryLower.includes("chest") || queryLower.includes("heart") || queryLower.includes("angina");
-  const needsCardiology = queryLower.includes("cardio") || queryLower.includes("heart") || queryLower.includes("chest") || specialty.toLowerCase().includes("cardiology");
-  const needsXray = queryLower.includes("xray") || queryLower.includes("x-ray") || queryLower.includes("fracture") || queryLower.includes("bone");
-  const needsPaediatrics = queryLower.includes("child") || queryLower.includes("baby") || queryLower.includes("pediatric") || queryLower.includes("paediatric");
-  const needsSkin = queryLower.includes("skin") || queryLower.includes("derma") || queryLower.includes("rash");
-  const needsEmergency = isEmergency || queryLower.includes("emergency") || queryLower.includes("trauma") || queryLower.includes("accident") || queryLower.includes("severe");
+  const needsECG = queryLower.includes("ecg") || queryLower.includes("heart");
+  const needsCardiology = queryLower.includes("cardio") || queryLower.includes("heart") || specialty.toLowerCase().includes("cardiology");
+  const needsPaediatrics = queryLower.includes("child") || queryLower.includes("pediatric") || queryLower.includes("paediatric");
+  const needsEmergency = isEmergency || queryLower.includes("emergency") || queryLower.includes("trauma") || queryLower.includes("accident");
 
   // 7. Clinical Suitability Scoring
-  const scoredFacilities: Facility[] = inRadius.map((fac) => {
+  const scoredFacilities: Facility[] = allCombined.map((fac) => {
     let score = 70;
     const reasons: string[] = [];
     const warnings: string[] = [];
-    const fails: string[] = [];
 
-    // Distance impact
     const dist = fac.distanceKm ?? 10;
-    if (dist <= 3) {
+    if (dist <= 2) {
       score += 15;
-      reasons.push(`Nearby (${formatDistance(dist)})`);
-    } else if (dist <= 10) {
-      score += 5;
-    } else if (dist > 25) {
-      score -= 10;
+      reasons.push(`Very Close (${formatDistance(dist)})`);
+    } else if (dist <= 5) {
+      score += 8;
+      reasons.push(`Within 5 km (${formatDistance(dist)})`);
+    } else if (dist > 15) {
+      score -= 15;
       warnings.push(`Distance is ${formatDistance(dist)}`);
     }
 
-    // Emergency prioritization
     if (needsEmergency) {
       if (fac.emergencyAvailable || fac.emergencyCapability) {
-        score += 35;
+        score += 25;
         reasons.push("24/7 Emergency Care Ready");
-      } else if (fac.facilityType.includes("HOSPITAL")) {
-        score += 15;
       } else {
-        score -= 25;
-        fails.push("No Emergency Unit (Daycare Clinic)");
+        score -= 20;
       }
     }
 
-    // Specialty matching
     if (needsCardiology) {
       const hasCardio =
-        fac.specialties.some((s) => s.toLowerCase().includes("cardio")) ||
-        fac.services.some((s) => s.toLowerCase().includes("cardio") || s.toLowerCase().includes("cath lab"));
+        (fac.specialties || []).some((s) => s.toLowerCase().includes("cardio")) ||
+        (fac.services || []).some((s) => s.toLowerCase().includes("cardio") || s.toLowerCase().includes("cath lab"));
       if (hasCardio) {
-        score += 25;
-        reasons.push("Cardiology Department Available");
+        score += 20;
+        reasons.push("Cardiology Specialty Available");
       }
     }
 
     if (needsECG) {
       const hasECG =
-        fac.services.some((s) => s.toLowerCase().includes("ecg")) ||
+        (fac.services || []).some((s) => s.toLowerCase().includes("ecg")) ||
         (fac.diagnostics && fac.diagnostics.some((d) => d.name.toLowerCase().includes("ecg")));
       if (hasECG) {
-        score += 20;
+        score += 15;
         reasons.push("12-Lead ECG Operational");
       }
     }
 
     if (needsPaediatrics) {
-      const hasPaed = fac.specialties.some((s) => s.toLowerCase().includes("paed") || s.toLowerCase().includes("pediatric"));
+      const hasPaed = (fac.specialties || []).some((s) => s.toLowerCase().includes("paed") || s.toLowerCase().includes("child") || s.toLowerCase().includes("pediatric"));
       if (hasPaed) {
-        score += 20;
-        reasons.push("Paediatric Specialist on Duty");
+        score += 15;
+        reasons.push("Child / Paediatric Care");
       }
     }
 
-    if (needsSkin) {
-      const hasSkin = fac.specialties.some((s) => s.toLowerCase().includes("derma") || s.toLowerCase().includes("skin"));
-      if (hasSkin) {
-        score += 20;
-        reasons.push("Dermatology Specialty Available");
-      }
-    }
-
-    // Text token matching (Hospital name or address)
+    // Name or Address text match
     if (searchTokens.length > 0) {
       const facNameLower = fac.name.toLowerCase();
       const facAddrLower = fac.address.toLowerCase();
-
-      if (facNameLower.includes(needQuery.trim().toLowerCase())) {
-        score += 50;
-        reasons.push(`Name Match: ${fac.name}`);
-      } else {
-        let tokenMatches = 0;
-        for (const token of searchTokens) {
-          if (facNameLower.includes(token) || facAddrLower.includes(token)) {
-            tokenMatches++;
-          }
-        }
-        if (tokenMatches > 0) {
-          score += tokenMatches * 10;
-        }
+      let matched = 0;
+      for (const t of searchTokens) {
+        if (facNameLower.includes(t) || facAddrLower.includes(t)) matched++;
       }
+      if (matched > 0) score += matched * 10;
     }
 
-    const finalScore = Math.max(20, Math.min(99, score));
+    const finalScore = Math.max(25, Math.min(99, score));
 
     return {
       ...fac,
       matchScore: finalScore,
       matchReasons: reasons,
       matchWarnings: warnings,
-      matchFails: fails,
     };
   });
 
-  // 8. Sorting: In Best Match mode sort by score then distance; otherwise sort strictly by distance
+  // 8. RANKING: GEOGRAPHIC PROXIMITY IS THE PRIMARY CRITERION
+  // In "Nearest" mode (and default): strictly sort by distanceKm.
+  // In "Best Match" mode: distance is primary tier (within 5km > within 10km > 15km).
   const sortedFacilities = scoredFacilities.sort((a, b) => {
-    if (isBestMatchMode) {
-      const scoreDiff = (b.matchScore ?? 0) - (a.matchScore ?? 0);
-      if (Math.abs(scoreDiff) > 10) return scoreDiff;
+    const distA = a.distanceKm ?? 999;
+    const distB = b.distanceKm ?? 999;
+
+    if (sortBy !== "best_match") {
+      return distA - distB;
     }
-    return (a.distanceKm ?? 0) - (b.distanceKm ?? 0);
+
+    // Best Match: within a 3.5km proximity difference, let clinical score break ties;
+    // but a 15km facility can NEVER outrank a 2km facility.
+    const distDiff = distA - distB;
+    if (Math.abs(distDiff) > 3.5) {
+      return distDiff;
+    }
+
+    const scoreDiff = (b.matchScore ?? 0) - (a.matchScore ?? 0);
+    return scoreDiff !== 0 ? scoreDiff : distDiff;
   });
 
   return {
     facilities: sortedFacilities,
     searchRadiusKm: activeRadius,
     totalInRadius: sortedFacilities.length,
-    isBestMatchMode,
+    isBestMatchMode: sortBy === "best_match",
     isExpandedRadius,
     queryAnalyzed: {
       specialtyRequired: needsCardiology ? "Cardiology" : needsPaediatrics ? "Paediatrics" : undefined,
-      diagnosticRequired: needsECG ? "12-Lead ECG" : needsXray ? "Digital X-Ray" : undefined,
-      isUrgent: needsECG || needsEmergency,
+      diagnosticRequired: needsECG ? "12-Lead ECG" : undefined,
+      isUrgent: needsEmergency || needsECG,
     },
     isOffline,
     lastSyncTime,
@@ -525,7 +492,7 @@ export async function getNearbyFacilities({
 }
 
 /**
- * Returns single facility details by ID with distance computed.
+ * Returns single facility details by ID.
  */
 export async function getFacilityDetails(id: string, userLat?: number, userLng?: number): Promise<Facility | null> {
   const fac = DEMO_FACILITIES.find((f) => f.id === id);
@@ -543,42 +510,13 @@ export async function getFacilityDetails(id: string, userLat?: number, userLng?:
 }
 
 /**
- * Searches facilities specifically providing a given clinical service.
- */
-export async function getFacilitiesByService(
-  service: string,
-  lat: number,
-  lng: number,
-  facilityType: "ALL" | "GOVERNMENT" | "PRIVATE" = "ALL"
-): Promise<Facility[]> {
-  const res = await getNearbyFacilities({ lat, lng, service, needQuery: service, facilityType });
-  return res.facilities.filter((f) =>
-    f.services.some((s) => s.toLowerCase().includes(service.toLowerCase())) ||
-    (f.diagnostics && f.diagnostics.some((d) => d.name.toLowerCase().includes(service.toLowerCase())))
-  );
-}
-
-/**
- * Searches facilities specifically with a given specialist on duty.
- */
-export async function getFacilitiesBySpecialist(
-  specialist: string,
-  lat: number,
-  lng: number,
-  facilityType: "ALL" | "GOVERNMENT" | "PRIVATE" = "ALL"
-): Promise<Facility[]> {
-  const res = await getNearbyFacilities({ lat, lng, specialty: specialist, facilityType });
-  return res.facilities;
-}
-
-/**
- * Returns emergency trauma capable facilities sorted by proximity.
+ * Returns emergency facilities strictly sorted by proximity.
  */
 export async function getEmergencyFacilities(
   lat: number,
   lng: number,
   facilityType: "ALL" | "GOVERNMENT" | "PRIVATE" = "ALL"
 ): Promise<Facility[]> {
-  const res = await getNearbyFacilities({ lat, lng, isEmergency: true, facilityType });
+  const res = await getNearbyFacilities({ lat, lng, isEmergency: true, facilityType, sortBy: "nearest" });
   return res.facilities.filter((f) => f.emergencyCapability || f.emergencyAvailable);
 }

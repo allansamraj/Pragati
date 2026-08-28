@@ -4,23 +4,26 @@ import { getNearbyFacilities } from "@/lib/services/facilityService";
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
-  const lat = parseFloat(searchParams.get("latitude") || searchParams.get("lat") || "21.3734");
-  const lng = parseFloat(searchParams.get("longitude") || searchParams.get("lng") || "74.2404");
-  const radius = searchParams.get("radius") ? parseInt(searchParams.get("radius")!, 10) : 10;
+  const lat = parseFloat(searchParams.get("latitude") || searchParams.get("lat") || "13.0827");
+  const lng = parseFloat(searchParams.get("longitude") || searchParams.get("lng") || "80.2707");
+  const radius = searchParams.get("radius") ? parseInt(searchParams.get("radius")!, 10) : undefined;
   const facilityType = (searchParams.get("facilityType")?.toUpperCase() as any) || "ALL";
   const service = searchParams.get("service") || "";
   const specialty = searchParams.get("specialty") || "";
   const locality = searchParams.get("locality") || "Near You";
+  const sortBy = (searchParams.get("sortBy") as any) || "nearest";
 
   try {
     const result = await getNearbyFacilities({
       lat,
       lng,
       locality,
-      initialRadiusKm: radius,
+      initialRadiusKm: 5,
+      customRadiusKm: radius,
       facilityType: facilityType === "GOVERNMENT" ? "GOVERNMENT" : facilityType === "PRIVATE" ? "PRIVATE" : "ALL",
       service,
       specialty,
+      sortBy,
     });
 
     return NextResponse.json(result, { status: 200 });

@@ -99,7 +99,9 @@ export interface LocationContextValue {
     needQuery?: string,
     specialty?: string,
     isEmergency?: boolean,
-    facilityType?: "ALL" | "GOVERNMENT" | "PRIVATE"
+    facilityType?: "ALL" | "GOVERNMENT" | "PRIVATE",
+    sortBy?: "nearest" | "best_match",
+    customRadiusKm?: number
   ) => Promise<NearbySearchResult>;
 }
 
@@ -298,13 +300,15 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
     [patientLoc]
   );
 
-  // Dynamic search with clinical filter
+  // Dynamic search with clinical filter & distance sorting
   const searchNearby = useCallback(
     async (
       needQuery?: string,
       specialty?: string,
       isEmergency?: boolean,
-      facilityType: "ALL" | "GOVERNMENT" | "PRIVATE" = "ALL"
+      facilityType: "ALL" | "GOVERNMENT" | "PRIVATE" = "ALL",
+      sortBy: "nearest" | "best_match" = "nearest",
+      customRadiusKm?: number
     ) => {
       return getNearbyFacilities({
         lat: patientLoc.lat,
@@ -314,6 +318,8 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
         specialty,
         isEmergency,
         facilityType,
+        sortBy,
+        customRadiusKm,
       });
     },
     [patientLoc]
