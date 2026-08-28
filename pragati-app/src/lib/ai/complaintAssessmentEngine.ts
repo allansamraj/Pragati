@@ -15,6 +15,7 @@ import { ChatMessage, AssistantLanguage, FacilityCardItem } from "./types";
 import { findRelevantHealthcareFacilities, FacilityWithMeta } from "@/lib/services/facilityService";
 
 export type ComplaintCategory =
+  | "VOMITING"
   | "FEVER"
   | "EYE"
   | "CHEST_PAIN"
@@ -48,6 +49,8 @@ export interface NavigationAssessmentSession {
   // Extracted clinical entities
   duration?: string;
   temperature?: string;
+  frequency?: string;
+  hydrationStatus?: string;
   severity?: "MILD" | "MODERATE" | "SEVERE";
   locationDetail?: string;
   associatedSymptoms: string[];
@@ -81,6 +84,37 @@ let memorySession: NavigationAssessmentSession | null = null;
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const COMPLAINT_QUESTION_BANKS: Record<ComplaintCategory, QuestionDefinition[]> = {
+  VOMITING: [
+    {
+      id: "vomit_onset_frequency",
+      category: "VOMITING",
+      priority: 1,
+      field: "duration_frequency",
+      purpose: "duration",
+      questionText: "When did the vomiting start, and approximately how many times have you vomited?",
+      chips: ["Started today (1-2 times)", "Since yesterday (multiple times)", "Continuous / frequent", "Feeling nauseous, haven't thrown up"],
+    },
+    {
+      id: "vomit_fluids_hydration",
+      category: "VOMITING",
+      priority: 2,
+      field: "hydration",
+      purpose: "severity",
+      questionText: "Are you able to keep water, ORS, or other fluids down without immediately throwing up?",
+      chips: ["Able to drink water/fluids", "Cannot keep any water down (Dehydrated)", "Drinking small sips slowly"],
+    },
+    {
+      id: "vomit_associated_red_flags",
+      category: "VOMITING",
+      priority: 3,
+      field: "associated_red_flags",
+      purpose: "red_flag",
+      questionText: "Do you have severe stomach pain, high fever, blood in the vomit, severe dizziness/fainting, or loose stools?",
+      chips: ["Mild nausea / loose stools", "No severe pain or fever", "Severe stomach pain & fever", "Blood in vomit / feeling faint (URGENT)"],
+      isRedFlagCheck: true,
+    },
+  ],
+
   FEVER: [
     {
       id: "fever_duration",
@@ -338,8 +372,8 @@ export const COMPLAINT_QUESTION_BANKS: Record<ComplaintCategory, QuestionDefinit
       priority: 3,
       field: "associated_red_flags",
       purpose: "red_flag",
-      questionText: "Are you having vomiting, diarrhea, high fever, inability to keep water down, or blood in vomit/stool?",
-      chips: ["Mild nausea / loose stools", "No vomiting or fever", "Severe vomiting & fever", "Blood in stool / vomit (URGENT)"],
+      questionText: "Are you having severe vomiting, high fever, inability to keep water down, or blood in vomit/stool?",
+      chips: ["Mild nausea / cramps", "No vomiting or fever", "Severe vomiting & fever", "Blood in stool / vomit (URGENT)"],
       isRedFlagCheck: true,
     },
   ],
@@ -430,6 +464,21 @@ export function detectCriticalRedFlags(text: string): { hasRedFlag: boolean; red
     flags.push("Airway or severe allergic reaction with facial/throat swelling");
   }
 
+  // Gastrointestinal red flags
+  if (
+    (t.includes("vomit") || t.includes("vomiting") || t.includes("threw up")) &&
+    (t.includes("blood") || t.includes("dark coffee") || t.includes("black"))
+  ) {
+    flags.push("Hematemesis (blood in vomit / gastrointestinal bleeding)");
+  }
+
+  if (
+    (t.includes("vomit") || t.includes("vomiting")) &&
+    (t.includes("cannot keep water") || t.includes("can't drink water") || t.includes("fainted") || t.includes("severe dehydration"))
+  ) {
+    flags.push("Severe dehydration / inability to retain oral hydration");
+  }
+
   // Neurological / Stroke / Thunderclap
   if (
     t.includes("thunderclap") ||
@@ -483,6 +532,8 @@ export function detectCriticalRedFlags(text: string): { hasRedFlag: boolean; red
 export function extractEntitiesFromText(text: string): {
   duration?: string;
   temperature?: string;
+  frequency?: string;
+  hydrationStatus?: string;
   severity?: "MILD" | "MODERATE" | "SEVERE";
   locationDetail?: string;
   associatedSymptoms: string[];
@@ -492,6 +543,8 @@ export function extractEntitiesFromText(text: string): {
   const t = text.toLowerCase();
   let duration: string | undefined = undefined;
   let temperature: string | undefined = undefined;
+  let frequency: string | undefined = undefined;
+  let hydrationStatus: string | undefined = undefined;
   let severity: "MILD" | "MODERATE" | "SEVERE" | undefined = undefined;
   let locationDetail: string | undefined = undefined;
   const associatedSymptoms: string[] = [];
@@ -503,12 +556,31 @@ export function extractEntitiesFromText(text: string): {
     duration = `${durMatch[1]} ${durMatch[2]}`;
   } else if (t.includes("since yesterday") || t.includes("from yesterday")) {
     duration = "Since yesterday";
-  } else if (t.includes("since today") || t.includes("started today") || t.includes("from morning") || t.includes("since morning")) {
+  } else if (t.includes("since today") || t.includes("started today") || t.includes("from morning") || t.includes("since morning") || t.includes("this morning")) {
     duration = "Started today";
   } else if (t.includes("few hours") || t.includes("couple of hours")) {
     duration = "Few hours";
   } else if (t.includes("a week") || t.includes("one week")) {
     duration = "1 week";
+  }
+
+  // Frequency / Vomiting count
+  const freqMatch = t.match(/(\d+)\s*(?:times|episodes|x)/);
+  if (freqMatch) {
+    frequency = `${freqMatch[1]} times`;
+  } else if (t.includes("once") || t.includes("one time")) {
+    frequency = "1 time";
+  } else if (t.includes("twice") || t.includes("two times") || t.includes("2 times")) {
+    frequency = "2 times";
+  } else if (t.includes("multiple times") || t.includes("many times") || t.includes("frequently") || t.includes("continuous")) {
+    frequency = "Multiple times";
+  }
+
+  // Hydration status
+  if (t.includes("cannot drink") || t.includes("can't drink") || t.includes("cannot keep water") || t.includes("can't keep water down") || t.includes("throwing up water")) {
+    hydrationStatus = "Unable to retain fluids (Dehydration risk)";
+  } else if (t.includes("able to drink") || t.includes("can drink water") || t.includes("drinking water") || t.includes("sipping water") || t.includes("taking ors")) {
+    hydrationStatus = "Able to retain oral fluids";
   }
 
   // Temperature extraction
@@ -552,9 +624,11 @@ export function extractEntitiesFromText(text: string): {
     { key: "headache", patterns: ["headache", "head pain", "head hurts"] },
     { key: "chills", patterns: ["chills", "shivering", "feeling cold"] },
     { key: "body pain", patterns: ["body pain", "body ache", "muscle ache", "body pain and chills"] },
-    { key: "vomiting", patterns: ["vomiting", "throwing up", "vomit"] },
+    { key: "vomiting", patterns: ["vomiting", "throwing up", "vomit", "threw up"] },
     { key: "nausea", patterns: ["nausea", "nauseous", "feeling sick"] },
+    { key: "stomach pain", patterns: ["stomach pain", "abdominal pain", "cramps", "belly pain"] },
     { key: "diarrhea", patterns: ["diarrhea", "loose motion", "loose stools"] },
+    { key: "fever", patterns: ["fever", "temperature", "high temp", "feverish"] },
     { key: "cough", patterns: ["cough", "coughing"] },
     { key: "sore throat", patterns: ["sore throat", "throat pain", "pain swallowing"] },
     { key: "rash", patterns: ["rash", "red spots", "hives", "bumps", "blisters"] },
@@ -574,8 +648,8 @@ export function extractEntitiesFromText(text: string): {
   for (const item of candidateSymptoms) {
     for (const p of item.patterns) {
       if (t.includes(p)) {
-        // Check for negation (e.g. "no breathing difficulty", "not having fever", "without chest pain")
-        const negPrefixes = [`no ${p}`, `not ${p}`, `no ${item.key}`, `without ${p}`, `without ${item.key}`, `nil ${p}`];
+        // Check for negation (e.g. "no breathing difficulty", "not having fever", "without chest pain", "no fever")
+        const negPrefixes = [`no ${p}`, `not ${p}`, `no ${item.key}`, `without ${p}`, `without ${item.key}`, `nil ${p}`, `no severe ${p}`, `no mild ${p}`, `neither ${p}`];
         const isNegated = negPrefixes.some((np) => t.includes(np)) || t.includes(`no ${p.split(" ")[0]}`) || t.includes(`not having ${p}`);
 
         if (isNegated) {
@@ -593,6 +667,8 @@ export function extractEntitiesFromText(text: string): {
   return {
     duration,
     temperature,
+    frequency,
+    hydrationStatus,
     severity,
     locationDetail,
     associatedSymptoms,
@@ -602,8 +678,33 @@ export function extractEntitiesFromText(text: string): {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. CLASSIFY PRIMARY COMPLAINT INTENT
+// 4. CLASSIFY PRIMARY COMPLAINT INTENT (Guards against negated symptoms)
 // ─────────────────────────────────────────────────────────────────────────────
+
+function hasPositiveSymptom(text: string, keywords: string[]): boolean {
+  const t = text.toLowerCase();
+  for (const kw of keywords) {
+    if (t.includes(kw)) {
+      const negatedPrefixes = [
+        `no ${kw}`,
+        `not ${kw}`,
+        `without ${kw}`,
+        `nil ${kw}`,
+        `never ${kw}`,
+        `no high ${kw}`,
+        `no severe ${kw}`,
+        `no mild ${kw}`,
+        `not having ${kw}`,
+        `neither ${kw}`,
+      ];
+      const isNegated = negatedPrefixes.some((p) => t.includes(p)) || t.includes(`no ${kw.split(" ")[0]}`);
+      if (!isNegated) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 export function classifyComplaintCategory(rawQuery: string): {
   category: ComplaintCategory;
@@ -641,31 +742,39 @@ export function classifyComplaintCategory(rawQuery: string): {
     q.includes("ecg") ||
     q.includes("blood test") ||
     q.includes("x-ray") ||
-    q.includes("scan centre")
+    q.includes("scan centre") ||
+    q === "hospital near me" ||
+    q === "nearest hospital" ||
+    q === "clinics near me" ||
+    q === "find care near me" ||
+    q === "find doctor"
   ) {
     return {
       category: "GENERAL",
-      complaintName: "Healthcare Diagnostic / Pharmacy Service",
-      mappedSpecialty: q.includes("pharmacy") ? "Pharmacy" : "Diagnostics & Imaging",
+      complaintName: "Healthcare Diagnostic / Facility Search",
+      mappedSpecialty: q.includes("pharmacy") ? "Pharmacy" : "General Medicine",
       clinicalCategoryLabel: "Healthcare Services",
       isExplicitSpecialtyOrFacility: true,
       isDistinctSymptomDeclaration: true,
     };
   }
 
-  // 2. Primary Symptom Declarations (Order of distinct clinical priority)
+  // 2. Primary Symptom Declarations (Guards against negations)
+
+  // VOMITING / NAUSEA / GASTROINTESTINAL
+  if (hasPositiveSymptom(q, ["vomit", "vomiting", "threw up", "throw up", "nausea", "nauseous", "feeling like vomiting", "puke"])) {
+    return {
+      category: "VOMITING",
+      complaintName: "Vomiting / Nausea",
+      mappedSpecialty: "General Medicine",
+      clinicalCategoryLabel: "General Medicine / Gastroenterology",
+      isExplicitSpecialtyOrFacility: false,
+      isDistinctSymptomDeclaration: true,
+    };
+  }
 
   // FEVER / TEMPERATURE
-  if (
-    q.includes("fever") ||
-    q.includes("temperature") ||
-    q.includes("high temp") ||
-    q.includes("running a temperature") ||
-    q.includes("feel feverish") ||
-    q.includes("feverish") ||
-    q.includes("pyrexia") ||
-    q.includes("body is hot")
-  ) {
+  if (hasPositiveSymptom(q, ["fever", "temperature", "high temp", "running a temperature", "feel feverish", "feverish", "pyrexia", "body is hot"])) {
     return {
       category: "FEVER",
       complaintName: "Fever / General malaise",
@@ -677,23 +786,7 @@ export function classifyComplaintCategory(rawQuery: string): {
   }
 
   // EYE
-  if (
-    q.includes("madras eye") ||
-    q.includes("conjunctivitis") ||
-    q.includes("pink eye") ||
-    q.includes("eye is red") ||
-    q.includes("red eye") ||
-    q.includes("eye redness") ||
-    q.includes("eye infection") ||
-    q.includes("watery eye") ||
-    q.includes("eyes are watering") ||
-    q.includes("eye watering") ||
-    q.includes("eye discharge") ||
-    q.includes("eye pain") ||
-    q.includes("stye") ||
-    q.includes("eye irritation") ||
-    q.includes("itchy eye")
-  ) {
+  if (hasPositiveSymptom(q, ["madras eye", "conjunctivitis", "pink eye", "eye is red", "red eye", "eye redness", "eye infection", "watery eye", "eyes are watering", "eye watering", "eye discharge", "eye pain", "stye", "eye irritation", "itchy eye"])) {
     return {
       category: "EYE",
       complaintName: q.includes("madras eye") ? "Madras eye / Conjunctivitis" : "Eye discomfort / infection",
@@ -705,14 +798,7 @@ export function classifyComplaintCategory(rawQuery: string): {
   }
 
   // CHEST PAIN
-  if (
-    q.includes("chest pain") ||
-    q.includes("chest tightness") ||
-    q.includes("chest pressure") ||
-    q.includes("pain in chest") ||
-    q.includes("heart pain") ||
-    q.includes("heart palpitation")
-  ) {
+  if (hasPositiveSymptom(q, ["chest pain", "chest tightness", "chest pressure", "pain in chest", "heart pain", "heart palpitation"])) {
     return {
       category: "CHEST_PAIN",
       complaintName: "Chest discomfort / pain",
@@ -724,19 +810,7 @@ export function classifyComplaintCategory(rawQuery: string): {
   }
 
   // SKIN
-  if (
-    q.includes("skin") ||
-    q.includes("itching") ||
-    q.includes("itchy") ||
-    q.includes("rash") ||
-    q.includes("allergy") ||
-    q.includes("hives") ||
-    q.includes("pimples") ||
-    q.includes("acne") ||
-    q.includes("eczema") ||
-    q.includes("scratching") ||
-    q.includes("red spots")
-  ) {
+  if (hasPositiveSymptom(q, ["skin", "itching", "itchy", "rash", "allergy", "hives", "pimples", "acne", "eczema", "scratching", "red spots"])) {
     return {
       category: "SKIN",
       complaintName: "Skin itching / allergy / rash",
@@ -748,15 +822,7 @@ export function classifyComplaintCategory(rawQuery: string): {
   }
 
   // DENTAL
-  if (
-    q.includes("tooth") ||
-    q.includes("teeth") ||
-    q.includes("dental") ||
-    q.includes("dentist") ||
-    q.includes("gum") ||
-    q.includes("wisdom tooth") ||
-    q.includes("cavity")
-  ) {
+  if (hasPositiveSymptom(q, ["tooth", "teeth", "dental", "dentist", "gum", "wisdom tooth", "cavity"])) {
     return {
       category: "DENTAL",
       complaintName: "Tooth / Dental complaint",
@@ -768,14 +834,7 @@ export function classifyComplaintCategory(rawQuery: string): {
   }
 
   // EAR
-  if (
-    q.includes("ear") ||
-    q.includes("earache") ||
-    q.includes("ear pain") ||
-    q.includes("ear hurts") ||
-    q.includes("ear blocked") ||
-    q.includes("hearing")
-  ) {
+  if (hasPositiveSymptom(q, ["ear", "earache", "ear pain", "ear hurts", "ear blocked", "hearing"])) {
     return {
       category: "EAR",
       complaintName: "Ear pain / infection / blockage",
@@ -787,14 +846,7 @@ export function classifyComplaintCategory(rawQuery: string): {
   }
 
   // THROAT / RESPIRATORY
-  if (
-    q.includes("sore throat") ||
-    q.includes("cough") ||
-    q.includes("cold") ||
-    q.includes("throat") ||
-    q.includes("phlegm") ||
-    q.includes("tonsil")
-  ) {
+  if (hasPositiveSymptom(q, ["sore throat", "cough", "cold", "throat", "phlegm", "tonsil"])) {
     return {
       category: "THROAT_RESPIRATORY",
       complaintName: "Cough / cold / sore throat",
@@ -806,12 +858,7 @@ export function classifyComplaintCategory(rawQuery: string): {
   }
 
   // HEADACHE
-  if (
-    q.includes("headache") ||
-    q.includes("head pain") ||
-    q.includes("head hurts") ||
-    q.includes("migraine")
-  ) {
+  if (hasPositiveSymptom(q, ["headache", "head pain", "head hurts", "migraine"])) {
     return {
       category: "HEADACHE",
       complaintName: "Headache / Head pain",
@@ -823,16 +870,7 @@ export function classifyComplaintCategory(rawQuery: string): {
   }
 
   // ABDOMINAL
-  if (
-    q.includes("stomach") ||
-    q.includes("abdominal") ||
-    q.includes("belly") ||
-    q.includes("tummy") ||
-    q.includes("gastric") ||
-    q.includes("vomit") ||
-    q.includes("diarrhea") ||
-    q.includes("loose motion")
-  ) {
+  if (hasPositiveSymptom(q, ["stomach", "abdominal", "belly", "tummy", "gastric", "diarrhea", "loose motion"])) {
     return {
       category: "ABDOMINAL_PAIN",
       complaintName: "Stomach / Abdominal discomfort",
@@ -844,17 +882,7 @@ export function classifyComplaintCategory(rawQuery: string): {
   }
 
   // INJURY / TRAUMA
-  if (
-    q.includes("injury") ||
-    q.includes("hurt my") ||
-    q.includes("fell") ||
-    q.includes("sprain") ||
-    q.includes("fracture") ||
-    q.includes("cut") ||
-    q.includes("bleeding") ||
-    q.includes("accident") ||
-    q.includes("twisted")
-  ) {
+  if (hasPositiveSymptom(q, ["injury", "hurt my", "fell", "sprain", "fracture", "cut", "bleeding", "accident", "twisted"])) {
     return {
       category: "INJURY_TRAUMA",
       complaintName: "Physical Injury / Sprain / Trauma",
@@ -939,6 +967,8 @@ export const complaintAssessmentEngine = {
       clinicalCategoryLabel,
       duration: extracted.duration,
       temperature: extracted.temperature,
+      frequency: extracted.frequency,
+      hydrationStatus: extracted.hydrationStatus,
       severity: extracted.severity,
       locationDetail: extracted.locationDetail,
       associatedSymptoms: extracted.associatedSymptoms,
@@ -970,6 +1000,13 @@ export const complaintAssessmentEngine = {
 
     // Check by category what key entities are required
     switch (session.category) {
+      case "VOMITING":
+        return !!(
+          ((session.duration || session.frequency) && session.hydrationStatus && (session.askedQuestionIds.includes("vomit_associated_red_flags") || session.associatedSymptoms.length > 0 || session.negatedSymptoms.length > 0)) ||
+          session.askedQuestionIds.length >= 3 ||
+          Object.keys(session.answers).length >= 2
+        );
+
       case "FEVER":
         return !!(
           (session.duration && session.temperature && (session.associatedSymptoms.length > 0 || session.negatedSymptoms.length > 0 || session.askedQuestionIds.includes("fever_associated_red_flags"))) ||
@@ -1024,7 +1061,7 @@ export const complaintAssessmentEngine = {
 
     if (process.env.NODE_ENV !== "production") {
       console.log(`[PRAGATI ASSESSMENT ENGINE] PRIMARY INTENT: ${session.category}`);
-      console.log(`[PRAGATI ASSESSMENT ENGINE] CURRENT STATE: duration=${session.duration || "missing"}, temp=${session.temperature || "missing"}`);
+      console.log(`[PRAGATI ASSESSMENT ENGINE] CURRENT STATE: duration=${session.duration || "missing"}, freq=${session.frequency || "missing"}, hydration=${session.hydrationStatus || "missing"}`);
       console.log(`[PRAGATI ASSESSMENT ENGINE] QUESTION CANDIDATES: ${candidates.map((c) => `${c.id} (p:${c.priority})`).join(", ")}`);
     }
 
@@ -1036,9 +1073,11 @@ export const complaintAssessmentEngine = {
       if (q.field === "temperature" && session.temperature) continue;
       if (q.field === "locationDetail" && session.locationDetail) continue;
       if (q.field === "duration_location" && (session.duration || session.locationDetail)) continue;
+      if (q.field === "duration_frequency" && (session.duration || session.frequency)) continue;
       if (q.field === "duration_onset" && session.duration) continue;
       if (q.field === "duration_character" && session.duration) continue;
       if (q.field === "duration_side" && (session.duration || session.locationDetail)) continue;
+      if (q.field === "hydration" && session.hydrationStatus) continue;
 
       if (process.env.NODE_ENV !== "production") {
         console.log(`[PRAGATI ASSESSMENT ENGINE] SELECTED QUESTION: ${q.id}`);
@@ -1059,6 +1098,8 @@ export const complaintAssessmentEngine = {
 
     if (extracted.duration && !updated.duration) updated.duration = extracted.duration;
     if (extracted.temperature && !updated.temperature) updated.temperature = extracted.temperature;
+    if (extracted.frequency && !updated.frequency) updated.frequency = extracted.frequency;
+    if (extracted.hydrationStatus && !updated.hydrationStatus) updated.hydrationStatus = extracted.hydrationStatus;
     if (extracted.severity && !updated.severity) updated.severity = extracted.severity;
     if (extracted.locationDetail && !updated.locationDetail) updated.locationDetail = extracted.locationDetail;
 
@@ -1094,6 +1135,8 @@ export const complaintAssessmentEngine = {
     let text = `Got you 👍 Based on what you've shared:\n\n`;
 
     if (session.duration) text += `• **Duration:** ${session.duration}\n`;
+    if (session.frequency) text += `• **Frequency:** ${session.frequency}\n`;
+    if (session.hydrationStatus) text += `• **Hydration Status:** ${session.hydrationStatus}\n`;
     if (session.temperature) text += `• **Temperature:** ${session.temperature}\n`;
     if (session.locationDetail) text += `• **Location:** ${session.locationDetail}\n`;
     if (session.associatedSymptoms.length > 0) {
@@ -1104,7 +1147,7 @@ export const complaintAssessmentEngine = {
     }
 
     text += `\nThis symptom profile is appropriate for evaluation by **${spec}**.\n\n`;
-    text += `Here are the top-ranked verified **${spec}** healthcare facilities near your location:`;
+    text += `Here are verified **${spec}** healthcare facilities near your location:`;
 
     return text;
   },
@@ -1153,17 +1196,13 @@ export const complaintAssessmentEngine = {
     // ── STEP 2: PRIMARY INTENT CLASSIFICATION & LOCK ──
     const classification = classifyComplaintCategory(queryTrimmed);
 
-    // CRITICAL FIX: If the user provides a distinct symptom declaration (e.g. "i got fever", "my skin is itching"),
-    // or if the category differs from active session, or if no active session exists:
-    // START A FRESH SESSION LOCKED TO THE NEW COMPLAINT!
-    const isExplicitSymptomDeclaration = classification.isDistinctSymptomDeclaration;
-    const isCategoryChange = activeSession && classification.category !== "GENERAL" && classification.category !== activeSession.category;
-    const shouldStartNewSession = !activeSession || activeSession.step === "COMPLETE" || isCategoryChange || (isExplicitSymptomDeclaration && activeSession.category !== classification.category);
+    const isCategoryChange = activeSession && activeSession.step !== "ASSESSING" && classification.category !== "GENERAL" && classification.category !== activeSession.category;
+    const shouldStartNewSession = !activeSession || activeSession.step === "COMPLETE" || isCategoryChange;
 
     let session: NavigationAssessmentSession;
 
     if (shouldStartNewSession || classification.isExplicitSpecialtyOrFacility) {
-      // If explicit intent (e.g. "I need an optometrist", "find pharmacy"), skip questioning
+      // If explicit intent (e.g. "I need an optometrist", "find pharmacy", "hospital near me"), skip questioning
       if (classification.isExplicitSpecialtyOrFacility) {
         this.clearSession();
         return await this.renderFacilityResultsDirectly(
@@ -1238,7 +1277,7 @@ export const complaintAssessmentEngine = {
     const introPrefix =
       session.askedQuestionIds.length === 1
         ? `Got you. `
-        : session.duration || session.temperature
+        : session.duration || session.temperature || session.frequency
         ? `Thanks. `
         : `Okay. `;
 
@@ -1320,7 +1359,7 @@ export const complaintAssessmentEngine = {
     lng: number
   ): Promise<ChatMessage> {
     const searchRes = await findRelevantHealthcareFacilities({
-      query: `${session.mappedSpecialty} ${session.primaryComplaint}`,
+      query: session.mappedSpecialty,
       latitude: lat,
       longitude: lng,
       facilityType: "ALL",
@@ -1342,12 +1381,12 @@ export const complaintAssessmentEngine = {
         travelMinutes: f.travelMinutes || 8,
         matchScore: f.matchScore ?? 75,
         specialistAvailable: hasSpec,
-        specialistName: hasSpec && f.doctors && f.doctors.length > 0 ? f.doctors[0].name.split(",")[0] : hasSpec ? `${session.mappedSpecialty} Specialist Available` : undefined,
+        specialistName: hasSpec && f.doctors && f.doctors.length > 0 ? f.doctors[0].name.split(",")[0] : hasSpec ? `${session.mappedSpecialty} Care Available` : undefined,
         diagnosticAvailable: (f.services || []).some((s) =>
           s.toLowerCase().includes("diagnostic") || s.toLowerCase().includes("ecg") || s.toLowerCase().includes("lab")
         ),
         queueWaitMinutes: f.queue?.estimatedWait,
-        isBestMatch: isDirectMatch && (f.matchScore ?? 0) >= 75,
+        isBestMatch: isDirectMatch && (f.matchScore ?? 0) >= 80,
         recommendationLabel: f.recommendationLabel,
         matchTier: f.matchTier,
       };
@@ -1380,7 +1419,7 @@ export const complaintAssessmentEngine = {
   },
 
   /**
-   * Helper: Directly renders facilities for explicit service requests (e.g. "I need an optometrist").
+   * Helper: Directly renders facilities for explicit service requests (e.g. "I need an optometrist", "hospital near me").
    */
   async renderFacilityResultsDirectly(
     msgId: string,
@@ -1415,12 +1454,12 @@ export const complaintAssessmentEngine = {
         travelMinutes: f.travelMinutes || 8,
         matchScore: f.matchScore ?? 75,
         specialistAvailable: hasSpec,
-        specialistName: hasSpec && f.doctors && f.doctors.length > 0 ? f.doctors[0].name.split(",")[0] : hasSpec ? `${specialty} Specialist Available` : undefined,
+        specialistName: hasSpec && f.doctors && f.doctors.length > 0 ? f.doctors[0].name.split(",")[0] : hasSpec ? `${specialty} Available` : undefined,
         diagnosticAvailable: (f.services || []).some((s) =>
           s.toLowerCase().includes("diagnostic") || s.toLowerCase().includes("ecg") || s.toLowerCase().includes("lab")
         ),
         queueWaitMinutes: f.queue?.estimatedWait,
-        isBestMatch: isDirectMatch && (f.matchScore ?? 0) >= 75,
+        isBestMatch: isDirectMatch && (f.matchScore ?? 0) >= 80,
         recommendationLabel: f.recommendationLabel,
         matchTier: f.matchTier,
       };
@@ -1430,7 +1469,7 @@ export const complaintAssessmentEngine = {
       id: msgId,
       sender: "assistant",
       text:
-        `Got you 👍 Here are verified **${specialty}** healthcare facilities near your location:\n\n` +
+        `Got you 👍 Here are verified healthcare facilities near your location:\n\n` +
         `You can view directions, timings, and OPD consultation details below:`,
       timestamp,
       role: "patient",
@@ -1440,8 +1479,8 @@ export const complaintAssessmentEngine = {
         data: facilityItems,
       },
       actionLink: {
-        label: `📍 View All ${specialty} Facilities on Map`,
-        href: `/patient/find-care?query=${encodeURIComponent(specialty)}`,
+        label: `📍 View Facilities on Map`,
+        href: `/patient/find-care?query=${encodeURIComponent(rawQuery)}`,
       },
       suggestedPrompts: [
         "How do I reach the nearest hospital?",

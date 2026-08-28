@@ -654,15 +654,29 @@ function calculateSuitabilityScore(
   let matchTier: MatchTier = "GENERAL_CARE_FALLBACK";
   let recommendationLabel = "GENERAL CARE FALLBACK";
 
-  if (isDirectSpecialtyMatch && totalScore >= 75) {
-    matchTier = "BEST_SPECIALTY_MATCH";
-    recommendationLabel = "★ BEST SPECIALTY MATCH";
-  } else if (isDirectSpecialtyMatch) {
-    matchTier = "BEST_SPECIALTY_MATCH";
-    recommendationLabel = "VERIFIED SPECIALTY CARE";
-  } else if (clinicalRelevanceScore > 0) {
-    matchTier = "NEARBY_GENERAL_CARE";
-    recommendationLabel = "NEARBY GENERAL CARE";
+  if (isGeneralIntent) {
+    if (isDirectSpecialtyMatch && totalScore >= 75) {
+      matchTier = "BEST_SPECIALTY_MATCH";
+      recommendationLabel = "VERIFIED PRIMARY CARE";
+    } else if (isDirectSpecialtyMatch) {
+      matchTier = "BEST_SPECIALTY_MATCH";
+      recommendationLabel = "GENERAL OPD CARE";
+    } else {
+      matchTier = "NEARBY_GENERAL_CARE";
+      recommendationLabel = "NEARBY GENERAL CARE";
+    }
+  } else {
+    // Specific Specialty required (e.g. Ophthalmology, Dermatology, Dentistry)
+    if (isDirectSpecialtyMatch && totalScore >= 75) {
+      matchTier = "BEST_SPECIALTY_MATCH";
+      recommendationLabel = "★ BEST SPECIALTY MATCH";
+    } else if (isDirectSpecialtyMatch) {
+      matchTier = "BEST_SPECIALTY_MATCH";
+      recommendationLabel = "VERIFIED SPECIALTY CARE";
+    } else if (clinicalRelevanceScore > 0) {
+      matchTier = "NEARBY_GENERAL_CARE";
+      recommendationLabel = "NEARBY GENERAL CARE";
+    }
   }
 
   return {

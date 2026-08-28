@@ -704,26 +704,12 @@ export const healthcareIntentRouter = {
     const activeAssessment = complaintAssessmentEngine.getSession();
     const analysis = this.classifyIntent(rawQuery);
 
-    // If active assessment is in progress, or user enters a symptom / complaint / specialty / red flag:
-    if (
-      activeAssessment ||
-      analysis.intent === 'SYMPTOM' ||
-      analysis.intent === 'EMERGENCY' ||
-      analysis.isEmergencyRedFlag ||
-      analysis.intent === 'SPECIALTY' ||
-      qLower.includes('fever') ||
-      qLower.includes('eye') ||
-      qLower.includes('chest') ||
-      qLower.includes('skin') ||
-      qLower.includes('itching') ||
-      qLower.includes('tooth') ||
-      qLower.includes('ear') ||
-      qLower.includes('throat') ||
-      qLower.includes('cough') ||
-      qLower.includes('headache') ||
-      qLower.includes('stomach') ||
-      qLower.includes('injury')
-    ) {
+    // Explicit direct searches: only if user specifically asks for direct discovery (e.g. "hospital near me", "pharmacy near me", "ecg lab")
+    const isDirectExplicitDiscovery =
+      analysis.intent === 'DIAGNOSTIC_TEST' ||
+      (analysis.intent === 'FACILITY_SEARCH' && (qLower.includes('hospital near') || qLower.includes('pharmacy') || qLower.includes('clinics near') || qLower.includes('find care near')));
+
+    if (!isDirectExplicitDiscovery) {
       return await complaintAssessmentEngine.processUserMessage(
         rawQuery,
         timestamp,
