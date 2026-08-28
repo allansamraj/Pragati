@@ -1,13 +1,15 @@
 // ─── PRAGATI STRUCTURED CONVERSATIONAL HEALTHCARE NAVIGATION ENGINE ─────────
 // Dynamic, complaint-aware conversational navigation assistant.
-// Implements: Progressive questioning, multi-entity extraction, red-flag screening,
-// non-generic question banks, conversational session memory, and grounded facility ranking.
+// Implements: Strict Primary Intent Lock, Category-Scoped Question Selection,
+// Progressive Questioning, Multi-Entity Extraction, Independent Red-Flag Screening,
+// Conversational Session Memory, and Grounded Facility Ranking.
 //
 // SAFETY PRINCIPLES:
 // 1. Triage-support and navigation ONLY. Never claims definitive medical diagnosis.
 // 2. Immediate red-flag escalation stops routine questioning instantly.
-// 3. Progressive questioning: 2–4 targeted questions max; skips already answered items.
-// 4. Shared canonical facility engine with truthful scoring.
+// 3. Progressive questioning: 2–3 targeted questions max per complaint; skips already answered items.
+// 4. Primary Intent Lock: Question selection is strictly scoped to the primary complaint category.
+// 5. Shared canonical facility engine with truthful scoring.
 
 import { ChatMessage, AssistantLanguage, FacilityCardItem } from "./types";
 import { findRelevantHealthcareFacilities, FacilityWithMeta } from "@/lib/services/facilityService";
@@ -27,16 +29,19 @@ export type ComplaintCategory =
 
 export interface QuestionDefinition {
   id: string;
+  category: ComplaintCategory;
+  priority: number;
   field: string;
   questionText: string;
   chips: string[];
+  purpose: "duration" | "severity" | "associated" | "red_flag" | "exposure" | "location";
   isRedFlagCheck?: boolean;
 }
 
 export interface NavigationAssessmentSession {
   sessionId: string;
+  primaryComplaint: string;
   category: ComplaintCategory;
-  complaintName: string;
   mappedSpecialty: string;
   clinicalCategoryLabel: string;
   
@@ -66,33 +71,43 @@ export interface NavigationAssessmentSession {
 }
 
 const SESSION_STORAGE_KEY = "pragati_active_assessment_v3";
+const SESSION_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
 // In-memory fallback for SSR and non-browser test scripts
 let memorySession: NavigationAssessmentSession | null = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. DYNAMIC QUESTION BANKS GROUPED BY COMPLAINT
+// 1. STRICT CATEGORY-SPECIFIC QUESTION BANKS WITH PRIORITIES
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const COMPLAINT_QUESTION_BANKS: Record<ComplaintCategory, QuestionDefinition[]> = {
   FEVER: [
     {
       id: "fever_duration",
+      category: "FEVER",
+      priority: 1,
       field: "duration",
+      purpose: "duration",
       questionText: "Since when have you had the fever?",
       chips: ["Since today", "2 days", "3-4 days", "More than a week"],
     },
     {
       id: "fever_temperature",
+      category: "FEVER",
+      priority: 2,
       field: "temperature",
-      questionText: "Do you know your approximate temperature? (for example, 100°F or 102°F)",
+      purpose: "severity",
+      questionText: "Do you know your temperature? If yes, what is it?",
       chips: ["Around 100°F", "101°F - 102°F", "Above 103°F", "Don't know exact temp"],
     },
     {
       id: "fever_associated_red_flags",
+      category: "FEVER",
+      priority: 3,
       field: "associated_red_flags",
-      questionText: "Are you having chills, severe weakness, vomiting, breathing difficulty, severe headache, confusion, rash, or persistent abdominal pain?",
-      chips: ["Mild chills & body ache", "Vomiting & weakness", "No severe symptoms", "Breathing difficulty / chest pain"],
+      purpose: "red_flag",
+      questionText: "Are you having chills, severe weakness, vomiting, severe headache, body pain, cough, sore throat, or breathing difficulty?",
+      chips: ["Body pain & chills", "Mild weakness / headache", "No severe symptoms", "Breathing difficulty / chest pain"],
       isRedFlagCheck: true,
     },
   ],
@@ -100,26 +115,38 @@ export const COMPLAINT_QUESTION_BANKS: Record<ComplaintCategory, QuestionDefinit
   EYE: [
     {
       id: "eye_duration",
+      category: "EYE",
+      priority: 1,
       field: "duration",
+      purpose: "duration",
       questionText: "When did the eye redness or discharge start?",
       chips: ["Since yesterday", "2-3 days", "Started today", "Few hours ago"],
     },
     {
       id: "eye_affected",
+      category: "EYE",
+      priority: 2,
       field: "locationDetail",
+      purpose: "location",
       questionText: "Is it affecting one eye or both eyes?",
       chips: ["One eye", "Both eyes", "Started in one, now both"],
     },
     {
       id: "eye_pain_vision",
+      category: "EYE",
+      priority: 3,
       field: "pain_vision",
+      purpose: "red_flag",
       questionText: "Are you having sharp eye pain or blurred / reduced vision?",
       chips: ["No vision changes, mild grittiness", "Yes, blurred vision", "Sharp deep eye pain", "No pain"],
       isRedFlagCheck: true,
     },
     {
       id: "eye_discharge_photophobia",
+      category: "EYE",
+      priority: 4,
       field: "discharge_photophobia",
+      purpose: "associated",
       questionText: "Is there thick sticky discharge, sensitivity to bright light, or mainly watering?",
       chips: ["Sticky yellowish discharge", "Mainly watery / itching", "Sensitivity to bright light", "Crusting in morning"],
     },
@@ -128,14 +155,20 @@ export const COMPLAINT_QUESTION_BANKS: Record<ComplaintCategory, QuestionDefinit
   CHEST_PAIN: [
     {
       id: "chest_onset_radiation",
+      category: "CHEST_PAIN",
+      priority: 1,
       field: "onset_radiation",
+      purpose: "red_flag",
       questionText: "When did the chest pain start, and does it spread to your left arm, shoulder, back, neck, or jaw?",
       chips: ["Started recently, spreads to arm/jaw", "Localized sharp pain", "Tightness for > 15 mins", "Pain with deep breath"],
       isRedFlagCheck: true,
     },
     {
       id: "chest_breathing_emergency",
+      category: "CHEST_PAIN",
+      priority: 2,
       field: "breathing_emergency",
+      purpose: "red_flag",
       questionText: "Are you experiencing shortness of breath, heavy sweating, feeling faint, severe weakness, or nausea?",
       chips: ["Yes, breathing difficulty / sweating", "Feeling dizzy / nauseous", "No breathlessness or sweating"],
       isRedFlagCheck: true,
@@ -145,19 +178,28 @@ export const COMPLAINT_QUESTION_BANKS: Record<ComplaintCategory, QuestionDefinit
   SKIN: [
     {
       id: "skin_duration_location",
+      category: "SKIN",
+      priority: 1,
       field: "duration_location",
+      purpose: "location",
       questionText: "When did the itching start, and where on your body is it happening?",
       chips: ["Since 2-3 days on arms/legs", "Started today all over", "Localized on face/neck", "Since a week"],
     },
     {
       id: "skin_rash_appearance",
+      category: "SKIN",
+      priority: 2,
       field: "rash_appearance",
+      purpose: "associated",
       questionText: "Do you have a visible rash, red bumps/hives, swelling, or blisters?",
       chips: ["Red raised bumps / hives", "Dry itchy redness", "Blisters / peeling", "No rash, just itching"],
     },
     {
       id: "skin_exposure_airway",
+      category: "SKIN",
+      priority: 3,
       field: "exposure_airway",
+      purpose: "red_flag",
       questionText: "Did you recently start using a new medicine, food, soap, or cosmetic? (And are you having any swelling of the lips/face or difficulty breathing?)",
       chips: ["No facial swelling or breathlessness", "Used a new soap / cosmetic", "New food / medicine exposure", "Lips / face are swelling (URGENT)"],
       isRedFlagCheck: true,
@@ -167,13 +209,19 @@ export const COMPLAINT_QUESTION_BANKS: Record<ComplaintCategory, QuestionDefinit
   DENTAL: [
     {
       id: "dental_duration_character",
+      category: "DENTAL",
+      priority: 1,
       field: "duration_character",
+      purpose: "duration",
       questionText: "How long have you had the tooth pain, and is it constant or triggered by eating/drinking hot or cold items?",
       chips: ["Since 2 days, triggered by food", "Continuous throbbing pain", "Started today", "Pain on chewing"],
     },
     {
       id: "dental_swelling_fever",
+      category: "DENTAL",
+      priority: 2,
       field: "swelling_fever",
+      purpose: "red_flag",
       questionText: "Is there visible swelling around your gums or face, fever, pus discharge, or a broken tooth?",
       chips: ["Mild gum swelling", "Visible cavity / broken tooth", "Facial swelling & fever", "No swelling or fever"],
       isRedFlagCheck: true,
@@ -183,13 +231,19 @@ export const COMPLAINT_QUESTION_BANKS: Record<ComplaintCategory, QuestionDefinit
   EAR: [
     {
       id: "ear_duration_side",
+      category: "EAR",
+      priority: 1,
       field: "duration_side",
+      purpose: "duration",
       questionText: "When did the ear pain or blockage start, and is it in one ear or both?",
       chips: ["Left ear since yesterday", "Right ear since 2-3 days", "Both ears blocked", "Started today"],
     },
     {
       id: "ear_discharge_hearing",
+      category: "EAR",
+      priority: 2,
       field: "discharge_hearing",
+      purpose: "associated",
       questionText: "Do you have any fluid discharge from the ear, reduced hearing, fever, or dizziness?",
       chips: ["Fluid / pus discharge", "Reduced hearing / blocked", "Mild pain only, no fever", "Severe dizziness / vertigo"],
       isRedFlagCheck: true,
@@ -199,19 +253,28 @@ export const COMPLAINT_QUESTION_BANKS: Record<ComplaintCategory, QuestionDefinit
   THROAT_RESPIRATORY: [
     {
       id: "throat_duration",
+      category: "THROAT_RESPIRATORY",
+      priority: 1,
       field: "duration",
+      purpose: "duration",
       questionText: "How long have you had the cough, cold, or sore throat?",
       chips: ["2-3 days", "Since yesterday", "More than a week", "2+ weeks"],
     },
     {
       id: "throat_fever_swallowing",
+      category: "THROAT_RESPIRATORY",
+      priority: 2,
       field: "fever_swallowing",
+      purpose: "associated",
       questionText: "Do you have a fever, or severe pain while swallowing food and liquids?",
       chips: ["Mild sore throat, low fever", "Severe pain swallowing", "No fever", "Persistent dry cough"],
     },
     {
       id: "throat_breathing_sputum",
+      category: "THROAT_RESPIRATORY",
+      priority: 3,
       field: "breathing_sputum",
+      purpose: "red_flag",
       questionText: "Are you experiencing difficulty breathing, chest tightness, or coughing up blood?",
       chips: ["No breathing trouble or blood", "Shortness of breath / wheezing", "Yellow/green phlegm", "Blood in cough (URGENT)"],
       isRedFlagCheck: true,
@@ -221,20 +284,29 @@ export const COMPLAINT_QUESTION_BANKS: Record<ComplaintCategory, QuestionDefinit
   HEADACHE: [
     {
       id: "headache_duration_onset",
+      category: "HEADACHE",
+      priority: 1,
       field: "duration_onset",
+      purpose: "duration",
       questionText: "When did the headache start, and did it develop gradually or suddenly like a severe thunderclap?",
       chips: ["Gradual over 1-2 days", "Sudden severe onset", "Worse in morning", "Throbbing on one side"],
       isRedFlagCheck: true,
     },
     {
       id: "headache_severity_associated",
+      category: "HEADACHE",
+      priority: 2,
       field: "severity_associated",
+      purpose: "severity",
       questionText: "How severe is the pain (mild, moderate, or severe), and do you have nausea, light sensitivity, or fever?",
       chips: ["Moderate, sensitivity to light/noise", "Mild tension headache", "Severe with vomiting & fever", "No other symptoms"],
     },
     {
       id: "headache_neurological_red_flags",
+      category: "HEADACHE",
+      priority: 3,
       field: "neurological_red_flags",
+      purpose: "red_flag",
       questionText: "Are you having any vision loss/double vision, weakness in arms/legs, numbness, confusion, or difficulty speaking?",
       chips: ["No neurological symptoms", "Blurry vision / aura", "Weakness / speech difficulty (EMERGENCY)"],
       isRedFlagCheck: true,
@@ -244,19 +316,28 @@ export const COMPLAINT_QUESTION_BANKS: Record<ComplaintCategory, QuestionDefinit
   ABDOMINAL_PAIN: [
     {
       id: "abdo_location_character",
+      category: "ABDOMINAL_PAIN",
+      priority: 1,
       field: "location_character",
+      purpose: "location",
       questionText: "Where exactly is the pain (upper stomach, lower right side, lower abdomen, or all over), and is it constant or cramping?",
       chips: ["Upper stomach (burning/acidic)", "Lower right side (sharp)", "Lower abdomen / cramps", "All over stomach"],
     },
     {
       id: "abdo_duration",
+      category: "ABDOMINAL_PAIN",
+      priority: 2,
       field: "duration",
+      purpose: "duration",
       questionText: "When did the stomach pain start?",
       chips: ["Since today / few hours", "Since yesterday", "2-3 days", "Comes and goes for weeks"],
     },
     {
       id: "abdo_associated_red_flags",
+      category: "ABDOMINAL_PAIN",
+      priority: 3,
       field: "associated_red_flags",
+      purpose: "red_flag",
       questionText: "Are you having vomiting, diarrhea, high fever, inability to keep water down, or blood in vomit/stool?",
       chips: ["Mild nausea / loose stools", "No vomiting or fever", "Severe vomiting & fever", "Blood in stool / vomit (URGENT)"],
       isRedFlagCheck: true,
@@ -266,20 +347,29 @@ export const COMPLAINT_QUESTION_BANKS: Record<ComplaintCategory, QuestionDefinit
   INJURY_TRAUMA: [
     {
       id: "injury_mechanism_location",
+      category: "INJURY_TRAUMA",
+      priority: 1,
       field: "mechanism_location",
+      purpose: "location",
       questionText: "What happened, and where is the injury located?",
       chips: ["Twisted ankle / knee", "Fell on arm / wrist", "Cut / laceration", "Direct blunt hit"],
     },
     {
       id: "injury_movement_weight",
+      category: "INJURY_TRAUMA",
+      priority: 2,
       field: "movement_weight",
+      purpose: "severity",
       questionText: "Can you move the affected area or bear weight on it, and is there visible swelling or deformity?",
       chips: ["Cannot bear weight / walk", "Mild swelling, can move", "Severe swelling / deformity", "Normal movement"],
       isRedFlagCheck: true,
     },
     {
       id: "injury_bleeding_head_trauma",
+      category: "INJURY_TRAUMA",
+      priority: 3,
       field: "bleeding_head_trauma",
+      purpose: "red_flag",
       questionText: "Is there active bleeding, numbness/tingling, or did you hit your head or lose consciousness?",
       chips: ["No bleeding or head hit", "Active bleeding (needs dressing/stitches)", "Hit head / felt dizzy", "Numbness in fingers/toes"],
       isRedFlagCheck: true,
@@ -289,13 +379,19 @@ export const COMPLAINT_QUESTION_BANKS: Record<ComplaintCategory, QuestionDefinit
   GENERAL: [
     {
       id: "general_duration",
+      category: "GENERAL",
+      priority: 1,
       field: "duration",
+      purpose: "duration",
       questionText: "How long have you been experiencing this symptom?",
       chips: ["Since today", "2-3 days", "About a week", "More than a week"],
     },
     {
       id: "general_severity",
+      category: "GENERAL",
+      priority: 2,
       field: "severity",
+      purpose: "severity",
       questionText: "How severe would you describe your discomfort (mild, moderate, or severe)?",
       chips: ["Mild discomfort", "Moderate pain/discomfort", "Severe discomfort"],
     },
@@ -455,6 +551,7 @@ export function extractEntitiesFromText(text: string): {
     { key: "chest pain", patterns: ["chest pain", "chest tightness", "chest pressure"] },
     { key: "headache", patterns: ["headache", "head pain", "head hurts"] },
     { key: "chills", patterns: ["chills", "shivering", "feeling cold"] },
+    { key: "body pain", patterns: ["body pain", "body ache", "muscle ache", "body pain and chills"] },
     { key: "vomiting", patterns: ["vomiting", "throwing up", "vomit"] },
     { key: "nausea", patterns: ["nausea", "nauseous", "feeling sick"] },
     { key: "diarrhea", patterns: ["diarrhea", "loose motion", "loose stools"] },
@@ -505,7 +602,7 @@ export function extractEntitiesFromText(text: string): {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. CLASSIFY COMPLAINT CATEGORY FROM NATURAL QUERY
+// 4. CLASSIFY PRIMARY COMPLAINT INTENT
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function classifyComplaintCategory(rawQuery: string): {
@@ -514,6 +611,7 @@ export function classifyComplaintCategory(rawQuery: string): {
   mappedSpecialty: string;
   clinicalCategoryLabel: string;
   isExplicitSpecialtyOrFacility: boolean;
+  isDistinctSymptomDeclaration: boolean;
 } {
   const q = rawQuery.toLowerCase();
 
@@ -531,6 +629,7 @@ export function classifyComplaintCategory(rawQuery: string): {
       mappedSpecialty: "Optometry",
       clinicalCategoryLabel: "Optometry & Optical Care",
       isExplicitSpecialtyOrFacility: true,
+      isDistinctSymptomDeclaration: true,
     };
   }
 
@@ -550,18 +649,22 @@ export function classifyComplaintCategory(rawQuery: string): {
       mappedSpecialty: q.includes("pharmacy") ? "Pharmacy" : "Diagnostics & Imaging",
       clinicalCategoryLabel: "Healthcare Services",
       isExplicitSpecialtyOrFacility: true,
+      isDistinctSymptomDeclaration: true,
     };
   }
 
-  // 2. Symptom / Complaint Categories
-  // FEVER / TEMPERATURE / CHILLS
+  // 2. Primary Symptom Declarations (Order of distinct clinical priority)
+
+  // FEVER / TEMPERATURE
   if (
     q.includes("fever") ||
     q.includes("temperature") ||
     q.includes("high temp") ||
-    q.includes("feeling hot") ||
+    q.includes("running a temperature") ||
+    q.includes("feel feverish") ||
+    q.includes("feverish") ||
     q.includes("pyrexia") ||
-    q.includes("feverish")
+    q.includes("body is hot")
   ) {
     return {
       category: "FEVER",
@@ -569,6 +672,7 @@ export function classifyComplaintCategory(rawQuery: string): {
       mappedSpecialty: "General Medicine",
       clinicalCategoryLabel: "General Medicine",
       isExplicitSpecialtyOrFacility: false,
+      isDistinctSymptomDeclaration: true,
     };
   }
 
@@ -596,6 +700,7 @@ export function classifyComplaintCategory(rawQuery: string): {
       mappedSpecialty: "Ophthalmology",
       clinicalCategoryLabel: "Ophthalmology / Eye Care",
       isExplicitSpecialtyOrFacility: false,
+      isDistinctSymptomDeclaration: true,
     };
   }
 
@@ -614,6 +719,7 @@ export function classifyComplaintCategory(rawQuery: string): {
       mappedSpecialty: "Cardiology",
       clinicalCategoryLabel: "Cardiology / Emergency Care",
       isExplicitSpecialtyOrFacility: false,
+      isDistinctSymptomDeclaration: true,
     };
   }
 
@@ -637,6 +743,7 @@ export function classifyComplaintCategory(rawQuery: string): {
       mappedSpecialty: "Dermatology",
       clinicalCategoryLabel: "Dermatology / Skin Care",
       isExplicitSpecialtyOrFacility: false,
+      isDistinctSymptomDeclaration: true,
     };
   }
 
@@ -656,6 +763,7 @@ export function classifyComplaintCategory(rawQuery: string): {
       mappedSpecialty: "Dentistry",
       clinicalCategoryLabel: "Dentistry / Dental Care",
       isExplicitSpecialtyOrFacility: false,
+      isDistinctSymptomDeclaration: true,
     };
   }
 
@@ -674,6 +782,7 @@ export function classifyComplaintCategory(rawQuery: string): {
       mappedSpecialty: "ENT (Otolaryngology)",
       clinicalCategoryLabel: "ENT (Otolaryngology)",
       isExplicitSpecialtyOrFacility: false,
+      isDistinctSymptomDeclaration: true,
     };
   }
 
@@ -692,6 +801,7 @@ export function classifyComplaintCategory(rawQuery: string): {
       mappedSpecialty: "General Medicine",
       clinicalCategoryLabel: "General Medicine / ENT",
       isExplicitSpecialtyOrFacility: false,
+      isDistinctSymptomDeclaration: true,
     };
   }
 
@@ -708,6 +818,7 @@ export function classifyComplaintCategory(rawQuery: string): {
       mappedSpecialty: "General Medicine",
       clinicalCategoryLabel: "General Medicine",
       isExplicitSpecialtyOrFacility: false,
+      isDistinctSymptomDeclaration: true,
     };
   }
 
@@ -728,6 +839,7 @@ export function classifyComplaintCategory(rawQuery: string): {
       mappedSpecialty: "General Medicine",
       clinicalCategoryLabel: "General Medicine / Gastroenterology",
       isExplicitSpecialtyOrFacility: false,
+      isDistinctSymptomDeclaration: true,
     };
   }
 
@@ -749,6 +861,7 @@ export function classifyComplaintCategory(rawQuery: string): {
       mappedSpecialty: "Orthopaedics",
       clinicalCategoryLabel: "Orthopaedics / Urgent Care",
       isExplicitSpecialtyOrFacility: false,
+      isDistinctSymptomDeclaration: true,
     };
   }
 
@@ -759,11 +872,12 @@ export function classifyComplaintCategory(rawQuery: string): {
     mappedSpecialty: "General Medicine",
     clinicalCategoryLabel: "General Medicine",
     isExplicitSpecialtyOrFacility: false,
+    isDistinctSymptomDeclaration: false,
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. SESSION MANAGEMENT & PROGRESSIVE QUESTION ENGINE
+// 5. SESSION MANAGEMENT & STRICT CATEGORY-LOCKED QUESTION ENGINE
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const complaintAssessmentEngine = {
@@ -771,10 +885,19 @@ export const complaintAssessmentEngine = {
     if (typeof window !== "undefined") {
       try {
         const d = sessionStorage.getItem(SESSION_STORAGE_KEY);
-        if (d) return JSON.parse(d);
+        if (d) {
+          const parsed: NavigationAssessmentSession = JSON.parse(d);
+          if (Date.now() - parsed.lastUpdatedAt < SESSION_EXPIRY_MS) {
+            return parsed;
+          }
+          this.clearSession();
+        }
       } catch {}
     }
-    return memorySession;
+    if (memorySession && Date.now() - memorySession.lastUpdatedAt < SESSION_EXPIRY_MS) {
+      return memorySession;
+    }
+    return null;
   },
 
   saveSession(session: NavigationAssessmentSession): void {
@@ -796,7 +919,7 @@ export const complaintAssessmentEngine = {
   },
 
   /**
-   * Initializes a new session for a complaint.
+   * Initializes a new session locked to a primary complaint category.
    */
   startNewSession(
     category: ComplaintCategory,
@@ -810,8 +933,8 @@ export const complaintAssessmentEngine = {
 
     const session: NavigationAssessmentSession = {
       sessionId: `sess-${Date.now()}`,
+      primaryComplaint: complaintName,
       category,
-      complaintName,
       mappedSpecialty,
       clinicalCategoryLabel,
       duration: extracted.duration,
@@ -831,6 +954,10 @@ export const complaintAssessmentEngine = {
       createdAt: Date.now(),
       lastUpdatedAt: Date.now(),
     };
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[PRAGATI ASSESSMENT ENGINE] PRIMARY INTENT LOCK: [${category}] - ${complaintName}`);
+    }
 
     return session;
   },
@@ -858,7 +985,6 @@ export const complaintAssessmentEngine = {
         );
 
       case "CHEST_PAIN":
-        // Chest pain evaluates emergency screen immediately
         return session.askedQuestionIds.length >= 1 || session.redFlagsDetected.length > 0;
 
       case "SKIN":
@@ -887,12 +1013,22 @@ export const complaintAssessmentEngine = {
   },
 
   /**
-   * Selects the next unasked, highest-value question for this session.
+   * STRICT CATEGORY QUESTION SELECTION:
+   * Selects the next highest-priority question ONLY from the locked category question bank.
    */
   selectNextQuestion(session: NavigationAssessmentSession): QuestionDefinition | null {
     const bank = COMPLAINT_QUESTION_BANKS[session.category] || COMPLAINT_QUESTION_BANKS.GENERAL;
+    const sortedBank = [...bank].sort((a, b) => a.priority - b.priority);
 
-    for (const q of bank) {
+    const candidates = sortedBank.filter((q) => !session.askedQuestionIds.includes(q.id));
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[PRAGATI ASSESSMENT ENGINE] PRIMARY INTENT: ${session.category}`);
+      console.log(`[PRAGATI ASSESSMENT ENGINE] CURRENT STATE: duration=${session.duration || "missing"}, temp=${session.temperature || "missing"}`);
+      console.log(`[PRAGATI ASSESSMENT ENGINE] QUESTION CANDIDATES: ${candidates.map((c) => `${c.id} (p:${c.priority})`).join(", ")}`);
+    }
+
+    for (const q of sortedBank) {
       if (session.askedQuestionIds.includes(q.id)) continue;
 
       // Skip if entity was already extracted in user message
@@ -904,6 +1040,9 @@ export const complaintAssessmentEngine = {
       if (q.field === "duration_character" && session.duration) continue;
       if (q.field === "duration_side" && (session.duration || session.locationDetail)) continue;
 
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[PRAGATI ASSESSMENT ENGINE] SELECTED QUESTION: ${q.id}`);
+      }
       return q;
     }
 
@@ -912,6 +1051,7 @@ export const complaintAssessmentEngine = {
 
   /**
    * Incorporates an incoming user answer into the active session.
+   * NOTE: The assistant's question NEVER alters the user's primary category.
    */
   updateSessionWithAnswer(session: NavigationAssessmentSession, answerText: string): NavigationAssessmentSession {
     const extracted = extractEntitiesFromText(answerText);
@@ -1010,19 +1150,19 @@ export const complaintAssessmentEngine = {
       return this.renderEmergencyAlertMessage(msgId, timestamp, language, immediateRedFlags.redFlags, lat, lng);
     }
 
-    // ── STEP 2: CHECK IF CONTINUING AN ACTIVE ASSESSMENT ──
+    // ── STEP 2: PRIMARY INTENT CLASSIFICATION & LOCK ──
     const classification = classifyComplaintCategory(queryTrimmed);
 
-    // If query starts a completely NEW complaint, switch session
-    const isNewDistinctComplaint =
-      !activeSession ||
-      (classification.category !== "GENERAL" &&
-        classification.category !== activeSession.category &&
-        activeSession.step === "COMPLETE");
+    // CRITICAL FIX: If the user provides a distinct symptom declaration (e.g. "i got fever", "my skin is itching"),
+    // or if the category differs from active session, or if no active session exists:
+    // START A FRESH SESSION LOCKED TO THE NEW COMPLAINT!
+    const isExplicitSymptomDeclaration = classification.isDistinctSymptomDeclaration;
+    const isCategoryChange = activeSession && classification.category !== "GENERAL" && classification.category !== activeSession.category;
+    const shouldStartNewSession = !activeSession || activeSession.step === "COMPLETE" || isCategoryChange || (isExplicitSymptomDeclaration && activeSession.category !== classification.category);
 
     let session: NavigationAssessmentSession;
 
-    if (isNewDistinctComplaint || !activeSession || classification.isExplicitSpecialtyOrFacility) {
+    if (shouldStartNewSession || classification.isExplicitSpecialtyOrFacility) {
       // If explicit intent (e.g. "I need an optometrist", "find pharmacy"), skip questioning
       if (classification.isExplicitSpecialtyOrFacility) {
         this.clearSession();
@@ -1038,6 +1178,7 @@ export const complaintAssessmentEngine = {
         );
       }
 
+      // Start fresh session locked to this primary complaint
       session = this.startNewSession(
         classification.category,
         classification.complaintName,
@@ -1046,7 +1187,7 @@ export const complaintAssessmentEngine = {
         queryTrimmed
       );
     } else {
-      // Continue existing active session
+      // Continue existing active session locked to session.category
       session = this.updateSessionWithAnswer(activeSession, queryTrimmed);
     }
 
@@ -1071,10 +1212,10 @@ export const complaintAssessmentEngine = {
       );
     }
 
-    // ── STEP 4: ASK NEXT SINGLE HIGH-VALUE QUESTION ──
+    // ── STEP 4: ASK NEXT CATEGORY-LOCKED HIGH-VALUE QUESTION ──
     const nextQ = this.selectNextQuestion(session);
     if (!nextQ) {
-      // No further questions in bank -> complete assessment
+      // No further questions in category bank -> complete assessment
       session.step = "COMPLETE";
       this.saveSession(session);
 
@@ -1179,7 +1320,7 @@ export const complaintAssessmentEngine = {
     lng: number
   ): Promise<ChatMessage> {
     const searchRes = await findRelevantHealthcareFacilities({
-      query: `${session.mappedSpecialty} ${session.complaintName}`,
+      query: `${session.mappedSpecialty} ${session.primaryComplaint}`,
       latitude: lat,
       longitude: lng,
       facilityType: "ALL",
