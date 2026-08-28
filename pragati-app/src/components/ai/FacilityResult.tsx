@@ -17,25 +17,37 @@ export function FacilityResult({ facilities }: { facilities: FacilityCardItem[] 
         >
           <div className="flex items-start justify-between gap-2 mb-1.5">
             <div>
-              {f.isBestMatch && (f.matchScore ?? 0) >= 80 && (
+              {f.recommendationLabel ? (
+                <span className={`text-[9px] font-extrabold uppercase tracking-wider rounded px-1.5 py-0.5 mb-1 inline-block ${
+                  f.matchTier === "BEST_SPECIALTY_MATCH"
+                    ? "text-burgundy-700 bg-blush border border-[rgba(124,45,45,0.18)]"
+                    : f.matchTier === "NEARBY_GENERAL_CARE"
+                    ? "text-amber-800 bg-amber-50 border border-amber-200"
+                    : "text-neutral-700 bg-neutral-100 border border-neutral-200"
+                }`}>
+                  {f.recommendationLabel}
+                </span>
+              ) : f.isBestMatch && (f.matchScore ?? 0) >= 80 ? (
                 <span className="text-[9px] font-extrabold uppercase tracking-wider text-burgundy-700 bg-blush border border-[rgba(124,45,45,0.18)] rounded px-1.5 py-0.5 mb-1 inline-block">
                   ★ Best Specialty Match
                 </span>
-              )}
+              ) : null}
               <div className="text-[13.5px] font-bold leading-snug">{f.name}</div>
               <div className="text-[11px] text-ink-tertiary">
                 {f.type} · {f.distanceKm} km (~{f.travelMinutes} min)
               </div>
             </div>
             <div className="text-right flex-shrink-0">
-              <span className="text-[16px] font-bold font-mono text-available-600">{f.matchScore}%</span>
+              <span className={`text-[16px] font-bold font-mono ${
+                (f.matchScore ?? 0) >= 75 ? "text-emerald-700" : "text-amber-700"
+              }`}>{f.matchScore}%</span>
               <span className="block text-[8.5px] uppercase tracking-widest text-ink-tertiary">suitability</span>
             </div>
           </div>
 
           <div className="flex items-center gap-2.5 text-[11px] text-ink-secondary my-2 flex-wrap">
             {f.specialistAvailable ? (
-              <span className="flex items-center gap-1 text-available-600 font-semibold">
+              <span className="flex items-center gap-1 text-emerald-700 font-semibold">
                 <CheckCircle2 className="w-3 h-3" /> Specialist Available
               </span>
             ) : (
@@ -43,9 +55,11 @@ export function FacilityResult({ facilities }: { facilities: FacilityCardItem[] 
                 <CheckCircle2 className="w-3 h-3 text-ink-tertiary" /> General Outpatient OPD
               </span>
             )}
-            <span className="flex items-center gap-1 text-ink-tertiary">
-              <Clock className="w-3 h-3" /> ~{f.queueWaitMinutes}m wait
-            </span>
+            {f.queueWaitMinutes ? (
+              <span className="flex items-center gap-1 text-ink-tertiary">
+                <Clock className="w-3 h-3" /> ~{f.queueWaitMinutes}m wait
+              </span>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-2 pt-2 border-t border-[rgba(124,45,45,0.08)]">

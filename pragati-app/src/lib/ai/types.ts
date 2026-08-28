@@ -13,8 +13,10 @@ export interface FacilityCardItem {
   specialistName?: string;
   diagnosticAvailable: boolean;
   diagnosticWaitMinutes?: number;
-  queueWaitMinutes: number;
+  queueWaitMinutes?: number;
   isBestMatch?: boolean;
+  recommendationLabel?: string;
+  matchTier?: 'BEST_SPECIALTY_MATCH' | 'NEARBY_GENERAL_CARE' | 'GENERAL_CARE_FALLBACK' | 'UNRELATED';
 }
 
 export interface TokenStatusItem {

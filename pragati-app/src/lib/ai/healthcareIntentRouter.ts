@@ -84,6 +84,7 @@ export const healthcareIntentRouter = {
   },
 
   /**
+
    * Cleans colloquial noise and extracts core clinical tokens.
    */
   normalizeQuery(query: string): string {
@@ -91,7 +92,7 @@ export const healthcareIntentRouter = {
       .toLowerCase()
       .trim()
       .replace(/^[!?,.\s]+|[!?,.\s]+$/g, '')
-      .replace(/(bro|bhai|anna|thambi|hey|hi|hello|pls|please|can you|help me with|i have|i got|suffering from|i need|need|want|find|show me|where is|tell me|suggest|looking for|my)/gi, ' ')
+      .replace(/\b(bro|bhai|anna|thambi|hey|hi|hello|pls|please|can you|help me with|i have got|i have|i got|suffering from|i need|need|want|find|show me|where is|tell me|suggest|looking for|my|for me)\b/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   },
@@ -164,33 +165,215 @@ export const healthcareIntentRouter = {
       }
     }
 
-    // ── 2. DERMATOLOGY / SKIN / ALLERGY / RASHES ──
+    // ── 2. OPHTHALMOLOGY / EYE / VISION / CONJUNCTIVITIS / MADRAS EYE ──
+    const isEyeSymptom =
+      rawLower.includes('madras eye') ||
+      clean.includes('madras eye') ||
+      rawLower.includes('conjunctivitis') ||
+      clean.includes('conjunctivitis') ||
+      rawLower.includes('pink eye') ||
+      clean.includes('pink eye') ||
+      rawLower.includes('red eye') ||
+      rawLower.includes('red eyes') ||
+      clean.includes('red eye') ||
+      clean.includes('red eyes') ||
+      rawLower.includes('eye is red') ||
+      rawLower.includes('eyes are red') ||
+      rawLower.includes('eye infection') ||
+      clean.includes('eye infection') ||
+      rawLower.includes('eye pain') ||
+      clean.includes('eye pain') ||
+      rawLower.includes('pain in eye') ||
+      clean.includes('pain in eye') ||
+      rawLower.includes('watery eye') ||
+      rawLower.includes('watery eyes') ||
+      clean.includes('watery eye') ||
+      clean.includes('watery eyes') ||
+      rawLower.includes('eyes are watering') ||
+      rawLower.includes('eye is watering') ||
+      clean.includes('watering eye') ||
+      rawLower.includes('eye discharge') ||
+      clean.includes('eye discharge') ||
+      rawLower.includes('pus in eye') ||
+      clean.includes('pus in eye') ||
+      rawLower.includes('sticky eye') ||
+      clean.includes('sticky eye') ||
+      rawLower.includes('eye irritation') ||
+      clean.includes('eye irritation') ||
+      rawLower.includes('burning eye') ||
+      clean.includes('burning eye') ||
+      rawLower.includes('itchy eye') ||
+      clean.includes('itchy eye') ||
+      rawLower.includes('eye itching') ||
+      clean.includes('eye itching') ||
+      rawLower.includes('eye swollen') ||
+      rawLower.includes('swollen eye') ||
+      clean.includes('swollen eye') ||
+      rawLower.includes('blurred vision') ||
+      rawLower.includes('blurry vision') ||
+      clean.includes('blurred vision') ||
+      clean.includes('blurry vision') ||
+      rawLower.includes('vision problem') ||
+      clean.includes('vision problem') ||
+      rawLower.includes('stye') ||
+      clean.includes('stye') ||
+      rawLower.includes('cataract') ||
+      rawLower.includes('glaucoma') ||
+      rawLower.includes('ophthalmolog') ||
+      clean.includes('ophthalmolog') ||
+      rawLower.includes('eye doctor') ||
+      clean.includes('eye doctor') ||
+      rawLower.includes('eye clinic') ||
+      clean.includes('eye clinic') ||
+      rawLower.includes('eye hospital') ||
+      clean.includes('eye hospital') ||
+      rawLower.includes('netralaya');
+
+    if (isEyeSymptom) {
+      const isSpecificCondition = rawLower.includes('madras eye') || rawLower.includes('conjunctivitis') || rawLower.includes('pink eye');
+      const symptomLabel = isSpecificCondition
+        ? 'Madras eye / Conjunctivitis (Eye Infection)'
+        : 'Eye infection / irritation / vision concern';
+
+      return {
+        intent: rawLower.includes('doctor') || rawLower.includes('ophthalmolog') ? 'SPECIALTY' : 'SYMPTOM',
+        confidence: 0.98,
+        extractedSymptom: symptomLabel,
+        mappedSpecialty: 'Ophthalmology',
+        clinicalCategory: 'Eye & Vision Care',
+        departmentName: 'Ophthalmology & Eye OPD',
+        urgencyLevel: 'ROUTINE',
+        isEmergencyRedFlag: false,
+        searchQueryForCare: 'Eye Hospital & Ophthalmology Clinic',
+        recommendedFacilitySector: 'ALL',
+        smartFollowUp: 'Are you experiencing sticky discharge, sensitivity to light, or severe pain? (Avoid touching your other eye to prevent cross-infection.)',
+        suggestedActionLabel: '📍 Find Nearby Eye Hospitals & Clinics',
+        suggestedActionHref: '/patient/find-care?specialty=ophthalmology&q=Eye+Hospital+and+Ophthalmology+Clinic',
+        suggestedChips: ['📍 Nearest Eye Hospital', '🏛️ Government Eye Clinic', '🏥 Private Eye Specialist', 'Check Eye OPD Queue'],
+      };
+    }
+
+    // ── 2b. OPTOMETRY / OPTICIAN / SPECTACLES / VISION CORRECTION ──
+    const isOptometry =
+      rawLower.includes('optometrist') ||
+      clean.includes('optometrist') ||
+      rawLower.includes('optometry') ||
+      clean.includes('optometry') ||
+      rawLower.includes('eye test') ||
+      clean.includes('eye test') ||
+      rawLower.includes('vision test') ||
+      clean.includes('vision test') ||
+      rawLower.includes('glasses') ||
+      clean.includes('glasses') ||
+      rawLower.includes('spectacles') ||
+      clean.includes('spectacles') ||
+      rawLower.includes('contact lens') ||
+      clean.includes('contact lens') ||
+      rawLower.includes('contact lenses') ||
+      rawLower.includes('optical') ||
+      clean.includes('optical') ||
+      rawLower.includes('power glasses') ||
+      clean.includes('power glasses') ||
+      rawLower.includes('reading glasses') ||
+      clean.includes('reading glasses') ||
+      rawLower.includes('eye power') ||
+      clean.includes('eye power');
+
+    if (isOptometry) {
+      return {
+        intent: 'SPECIALTY',
+        confidence: 0.97,
+        extractedSymptom: 'vision correction / optometry',
+        mappedSpecialty: 'Optometry',
+        clinicalCategory: 'Optometry & Vision Correction',
+        departmentName: 'Optometry & Optical Services',
+        urgencyLevel: 'ROUTINE',
+        isEmergencyRedFlag: false,
+        searchQueryForCare: 'Optometrist & Optical Eye Centre',
+        recommendedFacilitySector: 'ALL',
+        smartFollowUp: 'Are you looking for a vision power test, new spectacles, or contact lens fitting?',
+        suggestedActionLabel: '📍 Find Nearby Optometrist & Optical Centres',
+        suggestedActionHref: '/patient/find-care?specialty=optometry&q=Optometrist+and+Optical+Centre',
+        suggestedChips: ['📍 Nearest Optical Centre', '🏥 Eye Specialist Clinic', 'Vision Test', 'Contact Lens Fitting'],
+      };
+    }
+
+    // ── 3. DENTAL / TEETH / GUMS ──
+    const isDental =
+      rawLower.includes('tooth') ||
+      clean.includes('tooth') ||
+      rawLower.includes('teeth') ||
+      clean.includes('teeth') ||
+      rawLower.includes('tooth pain') ||
+      clean.includes('tooth pain') ||
+      rawLower.includes('toothache') ||
+      clean.includes('toothache') ||
+      rawLower.includes('gum pain') ||
+      clean.includes('gum pain') ||
+      rawLower.includes('bleeding gums') ||
+      clean.includes('bleeding gums') ||
+      rawLower.includes('dental') ||
+      clean.includes('dental') ||
+      rawLower.includes('dentist') ||
+      clean.includes('dentist') ||
+      rawLower.includes('cavity') ||
+      clean.includes('cavity') ||
+      rawLower.includes('wisdom tooth') ||
+      clean.includes('wisdom tooth') ||
+      rawLower.includes('root canal') ||
+      clean.includes('root canal');
+
+    if (isDental) {
+      return {
+        intent: rawLower.includes('dentist') ? 'SPECIALTY' : 'SYMPTOM',
+        confidence: 0.98,
+        extractedSymptom: 'dental / tooth pain',
+        mappedSpecialty: 'Dentistry',
+        clinicalCategory: 'Oral Healthcare',
+        departmentName: 'Dental OPD & Oral Health',
+        urgencyLevel: 'ROUTINE',
+        isEmergencyRedFlag: false,
+        searchQueryForCare: 'Dental Clinic & Oral Healthcare',
+        recommendedFacilitySector: 'ALL',
+        smartFollowUp: 'Is there any facial swelling, fever, or difficulty opening your mouth?',
+        suggestedActionLabel: '📍 Find Nearby Dental Clinics',
+        suggestedActionHref: '/patient/find-care?specialty=dentistry&q=Dental+Clinic+and+Oral+Healthcare',
+        suggestedChips: ['📍 Nearest Dental Clinic', '🏛️ Government Dental Centre', '🏥 Private Dental Clinic', 'Book Appointment'],
+      };
+    }
+
+    // ── 4. DERMATOLOGY / SKIN / ALLERGY / RASHES ──
     const isSkin =
-      clean.includes('skin allergy') ||
-      clean.includes('skin itching') ||
-      clean.includes('skin rash') ||
+      rawLower.includes('skin') ||
+      clean.includes('skin') ||
+      rawLower.includes('itching') ||
       clean.includes('itching') ||
+      rawLower.includes('itchy') ||
+      clean.includes('itchy') ||
+      rawLower.includes('rash') ||
       clean.includes('rash') ||
+      rawLower.includes('rashes') ||
       clean.includes('rashes') ||
-      clean.includes('red rash') ||
-      clean.includes('redness') ||
-      clean.includes('skin infection') ||
-      clean.includes('skin swollen') ||
-      clean.includes('swollen skin') ||
+      rawLower.includes('eczema') ||
       clean.includes('eczema') ||
-      clean.includes('hives') ||
-      clean.includes('acne') ||
-      clean.includes('pimples') ||
-      clean.includes('skin doctor') ||
-      clean.includes('dermatologist') ||
-      clean.includes('dermatology') ||
+      rawLower.includes('psoriasis') ||
       clean.includes('psoriasis') ||
-      clean.includes('boil') ||
-      clean.includes('skin problem') ||
-      clean.includes('skin irritation') ||
-      clean.includes('fungal') ||
+      rawLower.includes('hives') ||
+      clean.includes('hives') ||
+      rawLower.includes('acne') ||
+      clean.includes('acne') ||
+      rawLower.includes('pimple') ||
+      rawLower.includes('pimples') ||
+      clean.includes('pimple') ||
+      clean.includes('pimples') ||
+      rawLower.includes('dermatolog') ||
+      clean.includes('dermatolog') ||
+      rawLower.includes('skin doctor') ||
+      clean.includes('skin doctor') ||
+      rawLower.includes('ringworm') ||
       clean.includes('ringworm') ||
-      rawLower.includes('skin');
+      rawLower.includes('fungal infection') ||
+      clean.includes('fungal infection');
 
     if (isSkin) {
       const isGov = rawLower.includes('govt') || rawLower.includes('government');
@@ -198,8 +381,8 @@ export const healthcareIntentRouter = {
       const sector = isGov ? 'GOVERNMENT' : isPriv ? 'PRIVATE' : 'ALL';
 
       return {
-        intent: clean.includes('doctor') || clean.includes('dermatologist') ? 'SPECIALTY' : 'SYMPTOM',
-        confidence: 0.96,
+        intent: rawLower.includes('doctor') || rawLower.includes('dermatolog') ? 'SPECIALTY' : 'SYMPTOM',
+        confidence: 0.97,
         extractedSymptom: 'skin allergy / rash / itching',
         mappedSpecialty: 'Dermatology',
         clinicalCategory: 'Skin & Allergy Care',
@@ -221,28 +404,34 @@ export const healthcareIntentRouter = {
       };
     }
 
-    // ── 3. CARDIOLOGY / CHEST PAIN / HEART / ECG ──
+    // ── 5. CARDIOLOGY / CHEST PAIN / HEART / ECG ──
     const isCardiac =
+      rawLower.includes('chest pain') ||
       clean.includes('chest pain') ||
+      rawLower.includes('chest pressure') ||
       clean.includes('chest pressure') ||
+      rawLower.includes('palpitation') ||
       clean.includes('palpitation') ||
-      clean.includes('palpitations') ||
+      rawLower.includes('heart pain') ||
       clean.includes('heart pain') ||
+      rawLower.includes('racing heart') ||
       clean.includes('racing heart') ||
-      clean.includes('cardiologist') ||
-      clean.includes('cardiology') ||
+      rawLower.includes('cardiolog') ||
+      clean.includes('cardiolog') ||
+      rawLower.includes('ecg') ||
       clean.includes('ecg') ||
+      rawLower.includes('12-lead ecg') ||
       clean.includes('12-lead ecg') ||
-      clean.includes('heart test') ||
+      rawLower.includes('angina') ||
       clean.includes('angina') ||
-      clean.includes('high bp') ||
-      clean.includes('hypertension');
+      rawLower.includes('high bp') ||
+      rawLower.includes('hypertension');
 
     if (isCardiac) {
-      const isEcgTest = clean.includes('ecg') || clean.includes('test');
+      const isEcgTest = rawLower.includes('ecg') || clean.includes('ecg');
       return {
         intent: isEcgTest ? 'DIAGNOSTIC_TEST' : 'SYMPTOM',
-        confidence: 0.97,
+        confidence: 0.98,
         extractedSymptom: isEcgTest ? '12-Lead ECG Diagnostic' : 'chest discomfort / cardiac symptom',
         mappedSpecialty: 'Cardiology',
         clinicalCategory: 'Cardiology & Emergency',
@@ -258,106 +447,8 @@ export const healthcareIntentRouter = {
       };
     }
 
-    // ── 4. DENTAL / TEETH / GUMS ──
-    const isDental =
-      clean.includes('tooth pain') ||
-      clean.includes('toothache') ||
-      clean.includes('gum pain') ||
-      clean.includes('bleeding gums') ||
-      clean.includes('dental') ||
-      clean.includes('dentist') ||
-      clean.includes('broken tooth') ||
-      clean.includes('cavity') ||
-      clean.includes('tooth is hurting');
-
-    if (isDental) {
-      return {
-        intent: clean.includes('dentist') ? 'SPECIALTY' : 'SYMPTOM',
-        confidence: 0.95,
-        extractedSymptom: 'dental / tooth pain',
-        mappedSpecialty: 'Dentistry',
-        clinicalCategory: 'Oral Healthcare',
-        departmentName: 'Dental OPD & Oral Health',
-        urgencyLevel: 'ROUTINE',
-        isEmergencyRedFlag: false,
-        searchQueryForCare: 'Dental Clinic & Oral Healthcare',
-        recommendedFacilitySector: 'ALL',
-        smartFollowUp: 'Is there any facial swelling, fever, or difficulty opening your mouth?',
-        suggestedActionLabel: '📍 Find Nearby Dental Clinics',
-        suggestedActionHref: '/patient/find-care?specialty=dentistry&q=Dental+Clinic+and+Oral+Healthcare',
-        suggestedChips: ['📍 Nearest Dental Clinic', '🏛️ Government Dental Centre', '🏥 Private Dental Clinic', 'Book Appointment'],
-      };
-    }
-
-    // ── 5. OPHTHALMOLOGY / EYE / VISION ──
-    const isEye =
-      clean.includes('eye infection') ||
-      clean.includes('red eye') ||
-      clean.includes('eye pain') ||
-      clean.includes('vision problem') ||
-      clean.includes('blurry vision') ||
-      clean.includes('eye doctor') ||
-      clean.includes('ophthalmologist') ||
-      clean.includes('eye itching') ||
-      clean.includes('watery eye') ||
-      clean.includes('conjunctivitis');
-
-    if (isEye) {
-      return {
-        intent: clean.includes('doctor') || clean.includes('ophthalmologist') ? 'SPECIALTY' : 'SYMPTOM',
-        confidence: 0.95,
-        extractedSymptom: 'eye pain / infection / vision concern',
-        mappedSpecialty: 'Ophthalmology',
-        clinicalCategory: 'Eye & Vision Care',
-        departmentName: 'Ophthalmology & Eye OPD',
-        urgencyLevel: 'ROUTINE',
-        isEmergencyRedFlag: false,
-        searchQueryForCare: 'Eye Hospital & Ophthalmology Clinic',
-        recommendedFacilitySector: 'ALL',
-        smartFollowUp: 'Do you have sudden vision loss, severe eye trauma, or seeing flashes of light?',
-        suggestedActionLabel: '📍 Find Nearby Eye Care Centers',
-        suggestedActionHref: '/patient/find-care?specialty=ophthalmology&q=Eye+Hospital+and+Ophthalmology+Clinic',
-        suggestedChips: ['📍 Nearest Eye Hospital', '🏛️ Government Eye Clinic', '🏥 Private Eye Specialist', 'Check OPD Queue'],
-      };
-    }
-
-    // ── 5b. OPTOMETRY / OPTICIAN / SPECTACLES / VISION CORRECTION ──
-    // Distinct from Ophthalmology (medical eye disease) — Optometry is vision correction/glasses.
-    const isOptometry =
-      clean.includes('optometrist') ||
-      clean.includes('optometry') ||
-      clean.includes('eye test') ||
-      clean.includes('vision test') ||
-      clean.includes('glasses') ||
-      clean.includes('spectacles') ||
-      clean.includes('contact lens') ||
-      clean.includes('contact lenses') ||
-      clean.includes('optical') ||
-      clean.includes('power glasses') ||
-      clean.includes('reading glasses') ||
-      clean.includes('eye power') ||
-      rawLower.includes('optometrist');
-
-    if (isOptometry) {
-      return {
-        intent: 'SPECIALTY',
-        confidence: 0.97,
-        extractedSymptom: 'vision correction / optometry',
-        mappedSpecialty: 'Optometry',
-        clinicalCategory: 'Optometry & Vision Correction',
-        departmentName: 'Optometry & Optical Services',
-        urgencyLevel: 'ROUTINE',
-        isEmergencyRedFlag: false,
-        searchQueryForCare: 'Optometrist & Optical Eye Centre',
-        recommendedFacilitySector: 'ALL',
-        smartFollowUp: 'Are you looking for a vision test, new spectacles, or contact lens fitting?',
-        suggestedActionLabel: '📍 Find Nearby Optometrist & Optical Centres',
-        suggestedActionHref: '/patient/find-care?specialty=optometry&q=Optometrist+and+Optical+Centre',
-        suggestedChips: ['📍 Nearest Optical Centre', '🏥 Eye Specialist Clinic', 'Vision Test', 'Contact Lens Fitting'],
-      };
-    }
-
     // ── 6. ENT / EAR / NOSE / THROAT ──
+
     const isENT =
       clean.includes('ear pain') ||
       clean.includes('ear ache') ||
@@ -684,7 +775,7 @@ export const healthcareIntentRouter = {
         lng,
         facilityType: analysis.recommendedFacilitySector,
         initialRadiusKm: 5,
-        sortBy: 'nearest',
+        sortBy: 'best_match',
         intentContext: intentCtx,
       });
 
@@ -692,8 +783,8 @@ export const healthcareIntentRouter = {
 
       if (searchRes.facilities && searchRes.facilities.length > 0) {
         facilityItems = searchRes.facilities.slice(0, 3).map((f) => {
-          const isDirectMatch = (f.matchScore ?? 0) >= 80;
-          const hasSpec = (f.specialties || []).some((s) =>
+          const isDirectMatch = !!f.isDirectSpecialtyMatch;
+          const hasSpec = isDirectMatch || (f.specialties || []).some((s) =>
             s.toLowerCase().includes(analysis.mappedSpecialty.toLowerCase().split(' ')[0])
           );
 
@@ -703,14 +794,16 @@ export const healthcareIntentRouter = {
             type: f.type,
             distanceKm: f.distanceKm || 1.2,
             travelMinutes: f.travelMinutes || 8,
-            matchScore: f.matchScore || (isDirectMatch ? 90 : 55),
+            matchScore: f.matchScore ?? 75,
             specialistAvailable: hasSpec,
-            specialistName: hasSpec ? `${analysis.mappedSpecialty} Specialist on Duty` : 'General Medical Officer',
+            specialistName: hasSpec && f.doctors && f.doctors.length > 0 ? f.doctors[0].name.split(',')[0] : hasSpec ? `${analysis.mappedSpecialty} Specialist Available` : undefined,
             diagnosticAvailable: (f.services || []).some((s) =>
               s.toLowerCase().includes('diagnostic') || s.toLowerCase().includes('ecg') || s.toLowerCase().includes('lab')
             ),
-            queueWaitMinutes: f.queue?.estimatedWait || 12,
-            isBestMatch: isDirectMatch,
+            queueWaitMinutes: f.queue?.estimatedWait,
+            isBestMatch: isDirectMatch && (f.matchScore ?? 0) >= 75,
+            recommendationLabel: f.recommendationLabel,
+            matchTier: f.matchTier,
           };
         });
       }

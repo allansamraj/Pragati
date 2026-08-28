@@ -9,7 +9,7 @@
 import { DEMO_FACILITIES, Facility, FacilityType, OwnershipSector } from "@/data/facilities";
 import { calculateDistance, calculateTravelMinutes } from "./locationService";
 import { FacilityCategory, IntentContext, classifyGooglePlaceTypes, mapIntentToFacilityRequirements } from "@/lib/ai/facilityRequirementsMapper";
-import type { IntentAnalysisResult } from "@/lib/ai/healthcareIntentRouter";
+import { healthcareIntentRouter, type IntentAnalysisResult } from "@/lib/ai/healthcareIntentRouter";
 
 // FacilityWithMeta = Facility extended with the category field from FacilityCategory
 // (Facility already has googlePlaceId, googleMapsUri, isOpen?: boolean|null, and expanded source via facilities.ts)
@@ -551,22 +551,34 @@ function applyHardExclusions(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SUITABILITY SCORING (deterministic, intent-based, NOT proximity-based)
+// SUITABILITY SCORING (CLINICAL RELEVANCE FIRST, THEN PROXIMITY)
 // ─────────────────────────────────────────────────────────────────────────────
+export type MatchTier = 'BEST_SPECIALTY_MATCH' | 'NEARBY_GENERAL_CARE' | 'GENERAL_CARE_FALLBACK' | 'UNRELATED';
+
+export interface SuitabilityScoreResult {
+  score: number;
+  isDirectSpecialtyMatch: boolean;
+  matchTier: MatchTier;
+  recommendationLabel: string;
+  clinicalRelevanceScore: number;
+  distanceScore: number;
+  facilityTypeScore: number;
+  availabilityScore: number;
+}
+
 function calculateSuitabilityScore(
   fac: FacilityWithMeta,
   ctx: IntentContext
-): { score: number; isDirectSpecialtyMatch: boolean } {
-  let score = 0;
-  let isDirectSpecialtyMatch = false;
-
+): SuitabilityScoreResult {
   const category = fac.category || "OTHER";
   const facilitySpecialties = (fac.specialties || []).map((s) => s.toLowerCase());
   const specialtyLower = ctx.specialty.toLowerCase();
-  const types = fac.type?.toLowerCase() || "";
+  const isGeneralIntent = specialtyLower.includes("general") || ctx.specialty === "General Medicine";
 
-  // ── A. SPECIALTY SCORE (0–65) ──
-  // Direct specialty match: facility category matches the required specialty
+  // ── 1. CLINICAL RELEVANCE SCORE (0–65) ──
+  let clinicalRelevanceScore = 0;
+  let isDirectSpecialtyMatch = false;
+
   const directCategoryMatch = (
     (specialtyLower.includes("derma") || specialtyLower.includes("skin")) && (category === "SKIN_CLINIC") ||
     (specialtyLower.includes("dent")) && (category === "DENTAL_CLINIC") ||
@@ -581,55 +593,89 @@ function calculateSuitabilityScore(
     (specialtyLower.includes("emergency")) && (category === "HOSPITAL" || category === "GOVERNMENT_HOSPITAL")
   );
 
-  // Specialty in facility's own specialties[] array
   const specialtyArrayMatch = facilitySpecialties.some((s) =>
     s.includes(specialtyLower) || specialtyLower.includes(s.split(" ")[0])
   );
 
-  // Name-based specialty hint (only for confirmed specialty-named facilities)
   const nameLower = fac.name.toLowerCase();
   const nameSpecialtyHint = (
-    (specialtyLower.includes("derma") && (nameLower.includes("skin") || nameLower.includes("derma"))) ||
-    (specialtyLower.includes("dent") && (nameLower.includes("dental") || nameLower.includes("dentist"))) ||
-    (specialtyLower.includes("ophthalm") && (nameLower.includes("eye") || nameLower.includes("netralaya"))) ||
-    (specialtyLower.includes("optometr") && nameLower.includes("optic")) ||
-    (specialtyLower.includes("ent") && nameLower.includes("ent")) ||
-    (specialtyLower.includes("cardio") && (nameLower.includes("cardio") || nameLower.includes("heart"))) ||
-    (specialtyLower.includes("ortho") && nameLower.includes("ortho")) ||
-    (specialtyLower.includes("paed") && (nameLower.includes("child") || nameLower.includes("pediatric"))) ||
-    (specialtyLower.includes("diagnost") && (nameLower.includes("diagnostic") || nameLower.includes("scan")))
+    ((specialtyLower.includes("derma") || specialtyLower.includes("skin")) && (nameLower.includes("skin") || nameLower.includes("derma"))) ||
+    ((specialtyLower.includes("dent") || specialtyLower.includes("oral")) && (nameLower.includes("dental") || nameLower.includes("dentist") || nameLower.includes("tooth") || nameLower.includes("teeth") || nameLower.includes("oral care"))) ||
+    ((specialtyLower.includes("ophthalm") || specialtyLower.includes("eye")) && (nameLower.includes("eye ") || nameLower.includes("eye clinic") || nameLower.includes("eye hospital") || nameLower.includes("netralaya") || nameLower.includes("vision") || nameLower.includes("ophthalm"))) ||
+    ((specialtyLower.includes("optometr") || specialtyLower.includes("optic")) && (nameLower.includes("optic") || nameLower.includes("optometr") || nameLower.includes("spectacle") || nameLower.includes("lens"))) ||
+    ((specialtyLower.startsWith("ent") || specialtyLower.includes("otolaryng")) && (nameLower.includes("ent ") || nameLower.includes("ent clinic") || nameLower.includes("ent hospital") || nameLower.includes("ear, nose"))) ||
+    ((specialtyLower.includes("cardio") || specialtyLower.includes("heart")) && (nameLower.includes("cardio") || nameLower.includes("heart"))) ||
+    (specialtyLower.includes("ortho") && (nameLower.includes("ortho") || nameLower.includes("bone") || nameLower.includes("joint"))) ||
+    ((specialtyLower.includes("paed") || specialtyLower.includes("pediatr")) && (nameLower.includes("child") || nameLower.includes("pediatric") || nameLower.includes("kids"))) ||
+    ((specialtyLower.includes("diagnost") || specialtyLower.includes("imaging") || specialtyLower.includes("lab")) && (nameLower.includes("diagnostic") || nameLower.includes("scan") || nameLower.includes("lab"))) ||
+    (specialtyLower.includes("pharmacy") && (nameLower.includes("pharmacy") || nameLower.includes("medicals") || nameLower.includes("chemist")))
   );
 
-  if (directCategoryMatch || specialtyArrayMatch || nameSpecialtyHint) {
-    score += 65;
+  if (isGeneralIntent) {
+    if (category === "HOSPITAL" || category === "GOVERNMENT_HOSPITAL" || category === "PRIMARY_HEALTH_CENTRE" || category === "COMMUNITY_HEALTH_CENTRE" || category === "CLINIC") {
+      clinicalRelevanceScore = 60;
+      isDirectSpecialtyMatch = true;
+    } else {
+      clinicalRelevanceScore = 30;
+    }
+  } else if (directCategoryMatch || specialtyArrayMatch || nameSpecialtyHint) {
+    clinicalRelevanceScore = 65;
     isDirectSpecialtyMatch = true;
-  } else if (
-    // Fallback: government/general hospital when specialty is not strict
-    !ctx.isStrictSpecialty && (
-      category === "HOSPITAL" || category === "GOVERNMENT_HOSPITAL" ||
-      category === "PRIMARY_HEALTH_CENTRE" || category === "COMMUNITY_HEALTH_CENTRE"
-    )
-  ) {
-    score += 30;
-  } else if (!ctx.isStrictSpecialty && (category === "CLINIC" || category === "SPECIALTY_CLINIC")) {
-    score += 25;
+  } else if (!ctx.isStrictSpecialty && (category === "HOSPITAL" || category === "GOVERNMENT_HOSPITAL" || category === "PRIMARY_HEALTH_CENTRE" || category === "COMMUNITY_HEALTH_CENTRE")) {
+    // Multi-specialty / General hospital / PHC as secondary/fallback care
+    clinicalRelevanceScore = 15;
+    isDirectSpecialtyMatch = false;
   } else {
-    // No relevant match — score stays 0, but facility passed exclusion filter
-    score += 15;
+    clinicalRelevanceScore = 0;
+    isDirectSpecialtyMatch = false;
   }
 
-  // ── B. PROXIMITY SCORE (0–25) ──
+  // ── 2. DISTANCE SCORE (0–20) ──
   const dist = fac.distanceKm ?? 999;
-  if (dist <= 1) score += 25;
-  else if (dist <= 2) score += 20;
-  else if (dist <= 5) score += 12;
-  else if (dist <= 10) score += 5;
+  let distanceScore = 2;
+  if (dist <= 1.0) distanceScore = 20;
+  else if (dist <= 2.5) distanceScore = 16;
+  else if (dist <= 5.0) distanceScore = 12;
+  else if (dist <= 10.0) distanceScore = 6;
 
-  // ── C. BONUS SCORE (0–5) ──
-  if (fac.isOpen === true) score += 3;
-  if (fac.verified) score += 2;
+  // ── 3. FACILITY TYPE SCORE (0–8) ──
+  let facilityTypeScore = 3;
+  if (category === "HOSPITAL" || category === "GOVERNMENT_HOSPITAL") facilityTypeScore = 8;
+  else if (category === "PRIMARY_HEALTH_CENTRE" || category === "COMMUNITY_HEALTH_CENTRE" || category === "CLINIC" || category === "SPECIALTY_CLINIC") facilityTypeScore = 5;
 
-  return { score: Math.max(10, Math.min(95, score)), isDirectSpecialtyMatch };
+  // ── 4. AVAILABILITY SCORE (0–7) ──
+  let availabilityScore = 2;
+  if (fac.isOpen === true) availabilityScore += 3;
+  if (fac.emergencyAvailable) availabilityScore += 2;
+
+  // Total Suitability Score
+  const totalScore = Math.max(10, Math.min(95, clinicalRelevanceScore + distanceScore + facilityTypeScore + availabilityScore));
+
+  // Determine Match Tier & Label
+  let matchTier: MatchTier = "GENERAL_CARE_FALLBACK";
+  let recommendationLabel = "GENERAL CARE FALLBACK";
+
+  if (isDirectSpecialtyMatch && totalScore >= 75) {
+    matchTier = "BEST_SPECIALTY_MATCH";
+    recommendationLabel = "★ BEST SPECIALTY MATCH";
+  } else if (isDirectSpecialtyMatch) {
+    matchTier = "BEST_SPECIALTY_MATCH";
+    recommendationLabel = "VERIFIED SPECIALTY CARE";
+  } else if (clinicalRelevanceScore > 0) {
+    matchTier = "NEARBY_GENERAL_CARE";
+    recommendationLabel = "NEARBY GENERAL CARE";
+  }
+
+  return {
+    score: totalScore,
+    isDirectSpecialtyMatch,
+    matchTier,
+    recommendationLabel,
+    clinicalRelevanceScore,
+    distanceScore,
+    facilityTypeScore,
+    availabilityScore,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -649,11 +695,12 @@ function buildLegacyContext(specialty: string, needQuery: string, service: strin
       specialty ||
       (combined.includes("derma") || combined.includes("skin") ? "Dermatology" :
        combined.includes("dent") ? "Dentistry" :
-       combined.includes("ophthalm") || combined.includes("eye") ? "Ophthalmology" :
-       combined.includes("ent") || combined.includes("ear") ? "ENT (Otolaryngology)" :
+       combined.includes("ophthalm") || combined.includes("eye") || combined.includes("madras") || combined.includes("vision") ? "Ophthalmology" :
+       combined.includes("optometr") || combined.includes("spectacle") || combined.includes("glasses") ? "Optometry" :
+       combined.includes("ent") || combined.includes("ear") || combined.includes("throat") ? "ENT (Otolaryngology)" :
        combined.includes("cardio") || combined.includes("heart") || combined.includes("ecg") ? "Cardiology" :
        combined.includes("ortho") || combined.includes("bone") || combined.includes("joint") ? "Orthopaedics" :
-       combined.includes("paed") || combined.includes("child") ? "Paediatrics" :
+       combined.includes("paed") || combined.includes("child") || combined.includes("baby") ? "Paediatrics" :
        combined.includes("pharmacy") ? "Pharmacy" :
        "General Medicine"),
     clinicalCategory: "General",
@@ -700,7 +747,7 @@ export async function getNearbyFacilities({
   service = "",
   isEmergency = false,
   facilityType = "ALL",
-  sortBy = "nearest",
+  sortBy = "best_match",
   intentContext,
 }: NearbySearchParams): Promise<NearbySearchResult> {
   const isOffline = typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.onLine === false;
@@ -821,27 +868,40 @@ export async function getNearbyFacilities({
   // Suitability scoring
   let hasSpecialtyMatch = false;
   const scoredClinical = inClinicalRadius.map((fac) => {
-    const { score, isDirectSpecialtyMatch } = calculateSuitabilityScore(fac, ctx);
-    if (isDirectSpecialtyMatch) hasSpecialtyMatch = true;
-    return { ...fac, matchScore: score, _isDirectSpecialtyMatch: isDirectSpecialtyMatch };
+    const res = calculateSuitabilityScore(fac, ctx);
+    if (res.isDirectSpecialtyMatch) hasSpecialtyMatch = true;
+    return {
+      ...fac,
+      matchScore: res.score,
+      recommendationLabel: res.recommendationLabel,
+      matchTier: res.matchTier,
+      isDirectSpecialtyMatch: res.isDirectSpecialtyMatch,
+      clinicalRelevanceScore: res.clinicalRelevanceScore,
+      distanceScore: res.distanceScore,
+      facilityTypeScore: res.facilityTypeScore,
+      availabilityScore: res.availabilityScore,
+      _isDirectSpecialtyMatch: res.isDirectSpecialtyMatch,
+    };
   });
 
-  // Strict specialty check: If strict specialty (e.g. Dentistry, Optometry) and NO direct specialty match, do not fill with unrelated facilities
+  // Strict specialty check: If strict specialty (e.g. Dentistry, Optometry, Pharmacy) and NO direct specialty match, do not fill with unrelated facilities
   let eligibleClinical = scoredClinical;
   if (ctx.isStrictSpecialty && !hasSpecialtyMatch) {
     eligibleClinical = [];
   }
 
-  // Ranking
+  // Ranking: Direct Specialty matches ALWAYS rank before non-specialty matches
   const sortedClinical = eligibleClinical.sort((a, b) => {
     const aMatch = a._isDirectSpecialtyMatch;
     const bMatch = b._isDirectSpecialtyMatch;
     if (aMatch && !bMatch) return -1;
     if (!aMatch && bMatch) return 1;
-    if (sortBy === "nearest") return (a.distanceKm ?? 999) - (b.distanceKm ?? 999);
-    const distDiff = (a.distanceKm ?? 999) - (b.distanceKm ?? 999);
-    if (Math.abs(distDiff) > 3.5) return distDiff;
-    return (b.matchScore ?? 0) - (a.matchScore ?? 0);
+
+    // Both are direct matches or both are fallbacks: sort by score first
+    const scoreDiff = (b.matchScore ?? 0) - (a.matchScore ?? 0);
+    if (Math.abs(scoreDiff) >= 8) return scoreDiff;
+    // When score difference is within 8 points, closer facility ranks higher
+    return (a.distanceKm ?? 999) - (b.distanceKm ?? 999);
   });
 
   const finalClinicalFacilities = sortedClinical.map(({ _isDirectSpecialtyMatch, ...fac }) => fac as FacilityWithMeta);
@@ -874,8 +934,45 @@ export async function getNearbyFacilities({
   };
 }
 
+/**
+ * Canonical unified healthcare facility discovery function.
+ * Shared identically between Find Care and PRAGATI Care chatbot.
+ */
+export async function findRelevantHealthcareFacilities(params: {
+  query?: string;
+  latitude?: number;
+  longitude?: number;
+  lat?: number;
+  lng?: number;
+  radius?: number;
+  customRadiusKm?: number;
+  facilityType?: "ALL" | "GOVERNMENT" | "PRIVATE";
+  sortBy?: "nearest" | "best_match";
+}): Promise<NearbySearchResult> {
+  const effectiveLat = params.latitude ?? params.lat ?? 12.8696;
+  const effectiveLng = params.longitude ?? params.lng ?? 80.2200;
+  const effectiveRadius = params.radius ?? params.customRadiusKm;
+  const query = params.query || "";
+
+  let intentCtx: IntentContext | undefined = undefined;
+  if (query && query.trim().length > 0) {
+    const analysis = healthcareIntentRouter.classifyIntent(query);
+    intentCtx = mapIntentToFacilityRequirements(analysis);
+  }
+
+  return getNearbyFacilities({
+    lat: effectiveLat,
+    lng: effectiveLng,
+    needQuery: query,
+    customRadiusKm: effectiveRadius,
+    facilityType: params.facilityType || "ALL",
+    sortBy: params.sortBy || "best_match",
+    intentContext: intentCtx,
+  });
+}
 
 /**
+
  * Returns emergency facilities strictly sorted by proximity.
  */
 export async function getEmergencyFacilities(

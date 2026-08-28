@@ -94,6 +94,13 @@ export interface Facility {
   distanceKm?: number;
   travelMinutes?: number;
   matchScore?: number;
+  matchTier?: 'BEST_SPECIALTY_MATCH' | 'NEARBY_GENERAL_CARE' | 'GENERAL_CARE_FALLBACK' | 'UNRELATED';
+  recommendationLabel?: string;
+  isDirectSpecialtyMatch?: boolean;
+  clinicalRelevanceScore?: number;
+  distanceScore?: number;
+  facilityTypeScore?: number;
+  availabilityScore?: number;
   matchReasons?: string[];
   matchWarnings?: string[];
   matchFails?: string[];
@@ -297,6 +304,36 @@ export const DEMO_FACILITIES: Facility[] = [
     source: "Verified Health Directory",
     isPmJayEmpaneled: true,
   },
+
+  // 0g. Centre for Vision & Eye Surgery, Sholinganallur
+  {
+    id: "fac-omr-007",
+    name: "Centre for Vision & Eye Surgery, Sholinganallur",
+    type: "Eye Hospital & Ophthalmology Clinic",
+    facilityType: "PRIVATE_CLINIC",
+    ownership: "PRIVATE",
+    ownershipSector: "PRIVATE",
+    latitude: 12.8720,
+    longitude: 80.2280,
+    lat: 12.8720,
+    lng: 80.2280,
+    address: "Model School Road, Sholinganallur OMR, Chennai",
+    locality: "Sholinganallur",
+    city: "Chennai",
+    district: "Chennai",
+    state: "Tamil Nadu",
+    postalCode: "600119",
+    pincode: "600119",
+    phone: "044-24505500",
+    openingHours: "9:00 AM – 8:00 PM",
+    hours: "9:00 AM – 8:00 PM",
+    isOpen: true,
+    specialties: ["Ophthalmology", "Eye Care", "Optometry"],
+    services: ["Eye Examination", "Ophthalmology Consultation", "Conjunctivitis & Eye Infection Treatment", "Cataract Evaluation"],
+    verified: true,
+    source: "Verified Health Directory",
+  },
+
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ─── CHENNAI & TAMIL NADU REGION (VERIFIED PUBLIC & PRIVATE) ───────────────

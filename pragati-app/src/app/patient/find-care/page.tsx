@@ -643,11 +643,21 @@ function FindCareContent() {
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
-                        {isBestMatch && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-burgundy-700 bg-blush border border-[rgba(124,45,45,0.15)] rounded px-2 py-0.5">
-                            ★ BEST MATCH ({facility.matchScore}% Clinical Suitability)
+                        {facility.recommendationLabel ? (
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider rounded px-2 py-0.5 ${
+                            facility.matchTier === "BEST_SPECIALTY_MATCH"
+                              ? "text-burgundy-700 bg-blush border border-[rgba(124,45,45,0.15)]"
+                              : facility.matchTier === "NEARBY_GENERAL_CARE"
+                              ? "text-amber-800 bg-amber-50 border border-amber-200"
+                              : "text-neutral-700 bg-neutral-100 border border-neutral-200"
+                          }`}>
+                            {facility.recommendationLabel} ({facility.matchScore}% Suitability)
                           </span>
-                        )}
+                        ) : isBestMatch ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-burgundy-700 bg-blush border border-[rgba(124,45,45,0.15)] rounded px-2 py-0.5">
+                            ★ BEST SPECIALTY MATCH ({facility.matchScore}% Clinical Suitability)
+                          </span>
+                        ) : null}
                         {facility.ownershipSector === "GOVERNMENT" ? (
                           <span className="text-[10px] font-extrabold uppercase tracking-wider text-burgundy-800 bg-rose-50 border border-burgundy-200 rounded px-2 py-0.5">
                             🏛️ GOVERNMENT
@@ -678,7 +688,9 @@ function FindCareContent() {
                     <div className="text-right flex-shrink-0">
                       {facility.matchScore !== undefined ? (
                         <div>
-                          <div className="text-[20px] font-extrabold font-mono text-emerald-700">
+                          <div className={`text-[20px] font-extrabold font-mono ${
+                            (facility.matchScore ?? 0) >= 75 ? "text-emerald-700" : "text-amber-700"
+                          }`}>
                             {facility.matchScore}%
                           </div>
                           <div className="text-[9.5px] uppercase tracking-wider text-ink-tertiary font-bold">
@@ -687,7 +699,7 @@ function FindCareContent() {
                         </div>
                       ) : (
                         <div className="text-[11.5px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
-                          ● Open Now
+                          ● Verified
                         </div>
                       )}
                     </div>
@@ -696,29 +708,39 @@ function FindCareContent() {
                   {/* Important Available Services Tags */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 my-3.5 text-[12px] bg-bg p-3 rounded-[10px] border border-[rgba(124,45,45,0.06)]">
                     <div>
-                      <span className="text-ink-tertiary block text-[10.5px]">Specialist Doctor</span>
-                      <span className="font-bold text-emerald-700 flex items-center gap-1 mt-0.5">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        {facility.doctors && facility.doctors.length > 0 ? facility.doctors[0].name.split(",")[0] : (facility.specialties && facility.specialties.length > 0 ? facility.specialties[0] : "Specialist on Duty")}
+                      <span className="text-ink-tertiary block text-[10.5px]">Clinical Care</span>
+                      <span className="font-bold text-ink-primary flex items-center gap-1 mt-0.5">
+                        <CheckCircle2 className={`w-3.5 h-3.5 ${facility.isDirectSpecialtyMatch ? "text-emerald-700" : "text-ink-tertiary"}`} />
+                        {facility.doctors && facility.doctors.length > 0
+                          ? facility.doctors[0].name.split(",")[0]
+                          : facility.isDirectSpecialtyMatch
+                          ? (facility.specialties && facility.specialties.length > 0 ? facility.specialties[0] : "Specialty Care")
+                          : "General OPD"}
                       </span>
                     </div>
                     <div>
-                      <span className="text-ink-tertiary block text-[10.5px]">12-Lead ECG</span>
-                      <span className="font-bold text-emerald-700 flex items-center gap-1 mt-0.5">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        {(facility.services?.some(s => s.toLowerCase().includes("ecg")) || facility.diagnostics?.some(d => d.name.toLowerCase().includes("ecg"))) ? "Operational" : "At Central Hub"}
+                      <span className="text-ink-tertiary block text-[10.5px]">Facility Type</span>
+                      <span className="font-bold text-ink-primary flex items-center gap-1 mt-0.5 truncate">
+                        {facility.category === "EYE_HOSPITAL" ? "Eye & Vision Care" :
+                         facility.category === "SKIN_CLINIC" ? "Dermatology Clinic" :
+                         facility.category === "DENTAL_CLINIC" ? "Dental Clinic" :
+                         facility.category === "CARDIOLOGY_CLINIC" ? "Cardiology Centre" :
+                         facility.category === "DIAGNOSTIC_CENTER" ? "Diagnostic Lab" :
+                         facility.category === "PRIMARY_HEALTH_CENTRE" ? "Urban Health Centre" :
+                         facility.category === "HOSPITAL" || facility.category === "GOVERNMENT_HOSPITAL" ? "Hospital" :
+                         facility.type || "Healthcare Centre"}
                       </span>
                     </div>
                     <div>
-                      <span className="text-ink-tertiary block text-[10.5px]">Emergency Status</span>
-                      <span className={`font-bold mt-0.5 block ${facility.emergencyAvailable || facility.emergencyCapability ? "text-emerald-700" : "text-ink-primary"}`}>
-                        {facility.emergencyAvailable || facility.emergencyCapability ? "24/7 Available" : "Daycare / Scheduled OPD"}
+                      <span className="text-ink-tertiary block text-[10.5px]">Operating Hours</span>
+                      <span className={`font-bold mt-0.5 block ${facility.isOpen === true ? "text-emerald-700" : "text-ink-primary"}`}>
+                        {facility.openingHours || (facility.isOpen === true ? "Open Now" : facility.isOpen === false ? "Closed Now" : "Standard OPD Hours")}
                       </span>
                     </div>
                     <div>
-                      <span className="text-ink-tertiary block text-[10.5px]">OPD Queue</span>
-                      <span className="font-bold text-ink-primary mt-0.5 block">
-                        {facility.queue?.nowServing ? `Token #${facility.queue.nowServing} Serving` : "Walk-in Counter OPD"}
+                      <span className="text-ink-tertiary block text-[10.5px]">Emergency Care</span>
+                      <span className={`font-bold mt-0.5 block ${facility.emergencyAvailable || facility.emergencyCapability ? "text-emerald-700" : "text-ink-secondary"}`}>
+                        {facility.emergencyAvailable || facility.emergencyCapability ? "24/7 Emergency Active" : "Outpatient OPD"}
                       </span>
                     </div>
                   </div>
