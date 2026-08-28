@@ -4,6 +4,7 @@
 
 import { ChatMessage, AssistantLanguage, FacilityCardItem } from './types';
 import { getNearbyFacilities } from '@/lib/services/facilityService';
+import { mapIntentToFacilityRequirements } from './facilityRequirementsMapper';
 
 export type HealthcareIntent =
   | 'SYMPTOM'
@@ -317,6 +318,42 @@ export const healthcareIntentRouter = {
         suggestedActionLabel: '📍 Find Nearby Eye Care Centers',
         suggestedActionHref: '/patient/find-care?specialty=ophthalmology&q=Eye+Hospital+and+Ophthalmology+Clinic',
         suggestedChips: ['📍 Nearest Eye Hospital', '🏛️ Government Eye Clinic', '🏥 Private Eye Specialist', 'Check OPD Queue'],
+      };
+    }
+
+    // ── 5b. OPTOMETRY / OPTICIAN / SPECTACLES / VISION CORRECTION ──
+    // Distinct from Ophthalmology (medical eye disease) — Optometry is vision correction/glasses.
+    const isOptometry =
+      clean.includes('optometrist') ||
+      clean.includes('optometry') ||
+      clean.includes('eye test') ||
+      clean.includes('vision test') ||
+      clean.includes('glasses') ||
+      clean.includes('spectacles') ||
+      clean.includes('contact lens') ||
+      clean.includes('contact lenses') ||
+      clean.includes('optical') ||
+      clean.includes('power glasses') ||
+      clean.includes('reading glasses') ||
+      clean.includes('eye power') ||
+      rawLower.includes('optometrist');
+
+    if (isOptometry) {
+      return {
+        intent: 'SPECIALTY',
+        confidence: 0.97,
+        extractedSymptom: 'vision correction / optometry',
+        mappedSpecialty: 'Optometry',
+        clinicalCategory: 'Optometry & Vision Correction',
+        departmentName: 'Optometry & Optical Services',
+        urgencyLevel: 'ROUTINE',
+        isEmergencyRedFlag: false,
+        searchQueryForCare: 'Optometrist & Optical Eye Centre',
+        recommendedFacilitySector: 'ALL',
+        smartFollowUp: 'Are you looking for a vision test, new spectacles, or contact lens fitting?',
+        suggestedActionLabel: '📍 Find Nearby Optometrist & Optical Centres',
+        suggestedActionHref: '/patient/find-care?specialty=optometry&q=Optometrist+and+Optical+Centre',
+        suggestedChips: ['📍 Nearest Optical Centre', '🏥 Eye Specialist Clinic', 'Vision Test', 'Contact Lens Fitting'],
       };
     }
 
@@ -639,14 +676,16 @@ export const healthcareIntentRouter = {
     let hasSpecialtyMatch = false;
 
     try {
+      // Build structured intent context — enforces specialty eligibility and hard exclusions
+      const intentCtx = mapIntentToFacilityRequirements(analysis);
+
       const searchRes = await getNearbyFacilities({
         lat,
         lng,
-        specialty: analysis.mappedSpecialty,
-        needQuery: analysis.searchQueryForCare,
         facilityType: analysis.recommendedFacilitySector,
         initialRadiusKm: 5,
         sortBy: 'nearest',
+        intentContext: intentCtx,
       });
 
       hasSpecialtyMatch = searchRes.hasSpecialtyMatch;
@@ -654,7 +693,9 @@ export const healthcareIntentRouter = {
       if (searchRes.facilities && searchRes.facilities.length > 0) {
         facilityItems = searchRes.facilities.slice(0, 3).map((f) => {
           const isDirectMatch = (f.matchScore ?? 0) >= 80;
-          const hasSpec = (f.specialties || []).some((s) => s.toLowerCase().includes(analysis.mappedSpecialty.toLowerCase()));
+          const hasSpec = (f.specialties || []).some((s) =>
+            s.toLowerCase().includes(analysis.mappedSpecialty.toLowerCase().split(' ')[0])
+          );
 
           return {
             id: f.id,
@@ -664,8 +705,10 @@ export const healthcareIntentRouter = {
             travelMinutes: f.travelMinutes || 8,
             matchScore: f.matchScore || (isDirectMatch ? 90 : 55),
             specialistAvailable: hasSpec,
-            specialistName: hasSpec ? `${analysis.mappedSpecialty} Specialist on Duty` : "General Medical Officer",
-            diagnosticAvailable: f.services?.some((s) => s.toLowerCase().includes("diagnostic") || s.toLowerCase().includes("ecg")) || false,
+            specialistName: hasSpec ? `${analysis.mappedSpecialty} Specialist on Duty` : 'General Medical Officer',
+            diagnosticAvailable: (f.services || []).some((s) =>
+              s.toLowerCase().includes('diagnostic') || s.toLowerCase().includes('ecg') || s.toLowerCase().includes('lab')
+            ),
             queueWaitMinutes: f.queue?.estimatedWait || 12,
             isBestMatch: isDirectMatch,
           };

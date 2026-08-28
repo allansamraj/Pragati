@@ -79,11 +79,11 @@ export interface Facility {
   emergencyCapability?: boolean;
   openingHours?: string;
   hours?: string;
-  isOpen?: boolean;
+  isOpen?: boolean | null;  // null = unknown (Google Places did not provide hours)
   specialties: string[];
   services: string[];
   verified: boolean;
-  source: "OpenStreetMap Live Directory" | "Official State Health Registry" | "Verified Health Directory";
+  source: "OpenStreetMap Live Directory" | "Official State Health Registry" | "Verified Health Directory" | "google_places" | "openstreetmap" | "pragati_verified";
   isPmJayEmpaneled?: boolean;
   accreditation?: string;
   doctors?: Doctor[];
@@ -98,7 +98,11 @@ export interface Facility {
   matchWarnings?: string[];
   matchFails?: string[];
   lastUpdated?: string;
+  // Extended fields from Google Places integration
+  googlePlaceId?: string;
+  googleMapsUri?: string;
 }
+
 
 /**
  * Verified Real-World Healthcare Facilities Registry
